@@ -5,11 +5,9 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"github.com/eknkc/basex"
-	"hash/fnv"
 	"math"
 	"math/big"
 	"math/rand"
-	"strings"
 )
 
 const Alphabet = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789"
@@ -88,34 +86,11 @@ func StringToUUID5(str string) string {
 	return string(buf)
 }
 
-func RangeHash(in []byte, minlength int, maxlength int) (out []byte) {
-	if minlength > maxlength {
-		minlength = maxlength
-	}
-	h := fnv.New64()
-	h.Write(in)
-	seed := Abs64(int64(h.Sum64()))
-	length := minlength + int(seed%int64(maxlength-minlength+1))
-	rnd := rand.New(rand.NewSource(seed))
-	out = make([]byte, length)
-	rnd.Read(out)
-	return out
-}
-
-func GenServiceName(b []byte) string {
-	if len(b) == 0 {
-		return "GunService"
-	}
-	return Base64GrpcEncoder.Encode(RangeHash(b, 3, 12))
-}
-
-func SimplyGetParam(source string, key string) (value string) {
-	fields := strings.Split(source, ";")
-	for _, field := range fields {
-		f := strings.SplitN(field, "=", 2)
-		if len(f) == 2 && key == f[0] {
-			return f[1]
+func StringsHas(strs []string, str string) bool {
+	for _, s := range strs {
+		if s == str {
+			return true
 		}
 	}
-	return ""
+	return false
 }

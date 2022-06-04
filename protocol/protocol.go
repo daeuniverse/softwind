@@ -3,8 +3,10 @@ package protocol
 import (
 	"context"
 	"fmt"
+	"github.com/mzz2017/softwind/common"
 	"golang.org/x/net/proxy"
 	"net"
+	"strings"
 )
 
 var (
@@ -27,6 +29,10 @@ func (p Protocol) Valid() bool {
 	default:
 		return false
 	}
+}
+
+func (p Protocol) WithTLS() bool {
+	return common.StringsHas(strings.Split(string(p), "+"), "tls")
 }
 
 type DialerConverter struct {
