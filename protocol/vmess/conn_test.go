@@ -3,8 +3,8 @@ package vmess
 import (
 	"bufio"
 	"crypto/tls"
-	"github.com/mzz2017/softwind/protocol"
 	"github.com/google/uuid"
+	"github.com/mzz2017/softwind/protocol"
 	"io"
 	"net"
 	"net/http"

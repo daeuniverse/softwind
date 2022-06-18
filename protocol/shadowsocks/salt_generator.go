@@ -11,6 +11,43 @@ import (
 	"sync"
 )
 
+type (
+	SaltGeneratorType int
+)
+
+const (
+	IodizedSaltGeneratorType SaltGeneratorType = iota
+	RandomSaltGeneratorType
+)
+
+var DefaultSaltGeneratorType = IodizedSaltGeneratorType
+
+func GetSaltGenerator(masterKey []byte, saltLen int) (sg SaltGenerator, err error) {
+	MuGenerators.Lock()
+	sg, ok := SaltGenerators[saltLen]
+	if !ok {
+		MuGenerators.Unlock()
+		switch DefaultSaltGeneratorType {
+		case IodizedSaltGeneratorType:
+			sg, err = NewIodizedSaltGenerator(masterKey, saltLen, DefaultBucketSize, true)
+			if err != nil {
+				return nil, err
+			}
+		case RandomSaltGeneratorType:
+			sg, err = NewRandomSaltGenerator(DefaultBucketSize, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+		MuGenerators.Lock()
+		SaltGenerators[saltLen] = sg
+		MuGenerators.Unlock()
+	} else {
+		MuGenerators.Unlock()
+	}
+	return sg, nil
+}
+
 const DefaultBucketSize = 300
 
 var (

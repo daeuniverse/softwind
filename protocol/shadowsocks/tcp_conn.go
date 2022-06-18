@@ -24,16 +24,8 @@ const (
 	TCPChunkMaxLen = (1 << (16 - 2)) - 1
 )
 
-type SaltGeneratorType int
-
-const (
-	IodizedSaltGeneratorType SaltGeneratorType = iota
-	RandomSaltGeneratorType                    = iota
-)
-
 var (
-	ErrFailInitCipher        = fmt.Errorf("fail to initiate cipher")
-	DefaultSaltGeneratorType = IodizedSaltGeneratorType
+	ErrFailInitCipher = fmt.Errorf("fail to initiate cipher")
 )
 
 type TCPConn struct {
@@ -72,38 +64,12 @@ func EncryptedPayloadLen(plainTextLen int, tagLen int) int {
 	return plainTextLen + n*(2+tagLen+tagLen)
 }
 
-func getSaltGenerator(masterKey []byte, saltLen int) (sg SaltGenerator, err error) {
-	MuGenerators.Lock()
-	sg, ok := SaltGenerators[saltLen]
-	if !ok {
-		MuGenerators.Unlock()
-		switch DefaultSaltGeneratorType {
-		case IodizedSaltGeneratorType:
-			sg, err = NewIodizedSaltGenerator(masterKey, saltLen, DefaultBucketSize, true)
-			if err != nil {
-				return nil, err
-			}
-		case RandomSaltGeneratorType:
-			sg, err = NewRandomSaltGenerator(DefaultBucketSize, true)
-			if err != nil {
-				return nil, err
-			}
-		}
-		MuGenerators.Lock()
-		SaltGenerators[saltLen] = sg
-		MuGenerators.Unlock()
-	} else {
-		MuGenerators.Unlock()
-	}
-	return sg, nil
-}
-
 func NewTCPConn(conn net.Conn, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (crw *TCPConn, err error) {
 	conf := CiphersConf[metadata.Cipher]
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
 	}
-	sg, err := getSaltGenerator(masterKey, conf.SaltLen)
+	sg, err := GetSaltGenerator(masterKey, conf.SaltLen)
 	if err != nil {
 		return nil, err
 	}

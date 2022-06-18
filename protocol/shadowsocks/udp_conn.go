@@ -29,7 +29,7 @@ func NewUDPConn(conn net.PacketConn, metadata protocol.Metadata, masterKey []byt
 	}
 	key := make([]byte, len(masterKey))
 	copy(key, masterKey)
-	sg, err := getSaltGenerator(masterKey, conf.SaltLen)
+	sg, err := GetSaltGenerator(masterKey, conf.SaltLen)
 	if err != nil {
 		return nil, err
 	}
