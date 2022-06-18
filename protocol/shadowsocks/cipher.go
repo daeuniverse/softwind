@@ -6,7 +6,6 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"fmt"
-	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/mzz2017/softwind/pool"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
@@ -103,17 +102,14 @@ func (conf *CipherConf) Verify(buf []byte, masterKey []byte, salt []byte, cipher
 
 // EncryptUDPFromPool returns shadowBytes from pool.
 // the shadowBytes MUST be put back.
-func EncryptUDPFromPool(key Key, b []byte) (shadowBytes []byte, err error) {
+func EncryptUDPFromPool(key Key, b []byte, salt []byte) (shadowBytes []byte, err error) {
 	var buf = pool.Get(key.CipherConf.SaltLen + len(b) + key.CipherConf.TagLen)
 	defer func() {
 		if err != nil {
 			pool.Put(buf)
 		}
 	}()
-	_, err = fastrand.Read(buf[:key.CipherConf.SaltLen])
-	if err != nil {
-		return nil, err
-	}
+	copy(buf, salt)
 	subKey := pool.Get(key.CipherConf.KeyLen)
 	defer pool.Put(subKey)
 	kdf := hkdf.New(

@@ -6,11 +6,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	disk_bloom "github.com/mzz2017/disk-bloom"
 	"github.com/mzz2017/softwind/common"
-	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
-	disk_bloom "github.com/mzz2017/disk-bloom"
 	"golang.org/x/crypto/hkdf"
 	"hash"
 	"hash/fnv"
@@ -25,8 +24,16 @@ const (
 	TCPChunkMaxLen = (1 << (16 - 2)) - 1
 )
 
+type SaltGeneratorType int
+
+const (
+	IodizedSaltGeneratorType SaltGeneratorType = iota
+	RandomSaltGeneratorType                    = iota
+)
+
 var (
-	ErrFailInitCihper = fmt.Errorf("fail to initiate cipher")
+	ErrFailInitCipher        = fmt.Errorf("fail to initiate cipher")
+	DefaultSaltGeneratorType = IodizedSaltGeneratorType
 )
 
 type TCPConn struct {
@@ -49,6 +56,7 @@ type TCPConn struct {
 	indexToRead int
 
 	bloom *disk_bloom.FilterGroup
+	sg    SaltGenerator
 }
 
 type Key struct {
@@ -64,10 +72,40 @@ func EncryptedPayloadLen(plainTextLen int, tagLen int) int {
 	return plainTextLen + n*(2+tagLen+tagLen)
 }
 
+func getSaltGenerator(masterKey []byte, saltLen int) (sg SaltGenerator, err error) {
+	MuGenerators.Lock()
+	sg, ok := SaltGenerators[saltLen]
+	if !ok {
+		MuGenerators.Unlock()
+		switch DefaultSaltGeneratorType {
+		case IodizedSaltGeneratorType:
+			sg, err = NewIodizedSaltGenerator(masterKey, saltLen, DefaultBucketSize, true)
+			if err != nil {
+				return nil, err
+			}
+		case RandomSaltGeneratorType:
+			sg, err = NewRandomSaltGenerator(DefaultBucketSize, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+		MuGenerators.Lock()
+		SaltGenerators[saltLen] = sg
+		MuGenerators.Unlock()
+	} else {
+		MuGenerators.Unlock()
+	}
+	return sg, nil
+}
+
 func NewTCPConn(conn net.Conn, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (crw *TCPConn, err error) {
 	conf := CiphersConf[metadata.Cipher]
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
+	}
+	sg, err := getSaltGenerator(masterKey, conf.SaltLen)
+	if err != nil {
+		return nil, err
 	}
 	// DO NOT use pool here because Close() cannot interrupt the reading or writing, which will modify the value of the pool buffer.
 	key := make([]byte, len(masterKey))
@@ -80,6 +118,7 @@ func NewTCPConn(conn net.Conn, metadata protocol.Metadata, masterKey []byte, blo
 		nonceRead:  make([]byte, conf.NonceLen),
 		nonceWrite: make([]byte, conf.NonceLen),
 		bloom:      bloom,
+		sg:         sg,
 	}
 	if metadata.IsClient {
 		time.AfterFunc(100*time.Millisecond, func() {
@@ -141,9 +180,9 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 	})
 	if c.cipherRead == nil {
 		if errors.Is(err, protocol.ErrReplayAttack) {
-			return 0, fmt.Errorf("%v: %w", ErrFailInitCihper, err)
+			return 0, fmt.Errorf("%v: %w", ErrFailInitCipher, err)
 		}
-		return 0, fmt.Errorf("%w: %v", ErrFailInitCihper, err)
+		return 0, fmt.Errorf("%w: %v", ErrFailInitCipher, err)
 	}
 	c.mutex.Lock()
 	if c.indexToRead < len(c.leftToRead) {
@@ -223,12 +262,9 @@ func (c *TCPConn) initWriteFromPool(b []byte) (buf []byte, offset int, toWrite [
 	copy(toWrite[len(prefix)+len(b):], suffix)
 
 	buf = pool.Get(c.cipherConf.SaltLen + EncryptedPayloadLen(len(toWrite), c.cipherConf.TagLen))
-	_, err = fastrand.Read(buf[:c.cipherConf.SaltLen])
-	if err != nil {
-		pool.Put(buf)
-		pool.Put(toWrite)
-		return nil, 0, nil, err
-	}
+	salt := c.sg.Get()
+	copy(buf, salt)
+	pool.Put(salt)
 	subKey := pool.Get(c.cipherConf.KeyLen)
 	defer pool.Put(subKey)
 	kdf := hkdf.New(
@@ -278,7 +314,7 @@ func (c *TCPConn) Write(b []byte) (n int, err error) {
 	}
 	defer pool.Put(buf)
 	if c.cipherWrite == nil {
-		return 0, fmt.Errorf("%w: %v", ErrFailInitCihper, err)
+		return 0, fmt.Errorf("%w: %v", ErrFailInitCipher, err)
 	}
 	c.seal(buf[offset:], toPack)
 	//log.Trace("to write(%p): %v", &b, hex.EncodeToString(buf[:c.cipherConf.SaltLen]))

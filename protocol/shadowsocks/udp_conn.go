@@ -1,9 +1,10 @@
 package shadowsocks
 
 import (
+	"fmt"
+	disk_bloom "github.com/mzz2017/disk-bloom"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
-	disk_bloom "github.com/mzz2017/disk-bloom"
 	"net"
 	"net/netip"
 	"strconv"
@@ -18,23 +19,32 @@ type UDPConn struct {
 	cipherConf CipherConf
 	masterKey  []byte
 	bloom      *disk_bloom.FilterGroup
+	sg         SaltGenerator
 }
 
 func NewUDPConn(conn net.PacketConn, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (*UDPConn, error) {
-	key := pool.Get(len(masterKey))
+	conf := CiphersConf[metadata.Cipher]
+	if conf.NewCipher == nil {
+		return nil, fmt.Errorf("invalid CipherConf")
+	}
+	key := make([]byte, len(masterKey))
 	copy(key, masterKey)
+	sg, err := getSaltGenerator(masterKey, conf.SaltLen)
+	if err != nil {
+		return nil, err
+	}
 	c := &UDPConn{
 		PacketConn: conn,
 		metadata:   metadata,
-		cipherConf: CiphersConf[metadata.Cipher],
+		cipherConf: conf,
 		masterKey:  key,
 		bloom:      bloom,
+		sg:         sg,
 	}
 	return c, nil
 }
 
 func (c *UDPConn) Close() error {
-	pool.Put(c.masterKey)
 	return c.PacketConn.Close()
 }
 
@@ -61,10 +71,12 @@ func (c *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	defer pool.Put(chunk)
 	copy(chunk, prefix)
 	copy(chunk[len(prefix):], b)
+	salt := c.sg.Get()
 	toWrite, err := EncryptUDPFromPool(Key{
 		CipherConf: c.cipherConf,
 		MasterKey:  c.masterKey,
-	}, chunk)
+	}, chunk, salt)
+	pool.Put(salt)
 	if err != nil {
 		return 0, err
 	}
