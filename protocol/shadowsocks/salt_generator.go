@@ -7,6 +7,7 @@ import (
 	"github.com/mzz2017/softwind/pool"
 	"golang.org/x/crypto/hkdf"
 	"io"
+	"log"
 	"net/http"
 	"sync"
 )
@@ -78,10 +79,14 @@ type SaltGenerator interface {
 
 type IodizedSaltGenerator struct {
 	tokenBucket chan []byte
-	bucketSize  int
 	saltSize    int
 	fromPool    bool
-	source      io.Reader
+	muSource    sync.Mutex
+	source      []byte
+	begin       int
+	tokenLen    int
+	kdfInfo     []byte
+	salt        []byte
 	closed      chan struct{}
 }
 
@@ -98,17 +103,24 @@ func NewIodizedSaltGenerator(salt []byte, saltSize, bucketSize int, fromPool boo
 	if err != nil {
 		return nil, err
 	}
-
-	kdf := hkdf.New(sha1.New, b, salt, []byte("softwind"))
+	var rnd [2]byte
+	fastrand.Read(rnd[:])
+	h := sha1.New()
+	h.Write(rnd[:])
+	h.Write(salt)
+	kdfInfo := h.Sum(b)
 	g := IodizedSaltGenerator{
 		tokenBucket: make(chan []byte, bucketSize),
-		bucketSize:  bucketSize,
 		saltSize:    saltSize,
-		source:      kdf,
-		closed:      make(chan struct{}),
 		fromPool:    fromPool,
+		source:      b,
+		begin:       0,
+		tokenLen:    5,
+		kdfInfo:     kdfInfo[:],
+		salt:        salt,
+		closed:      make(chan struct{}),
 	}
-	g.start()
+	go g.start()
 	return &g, nil
 }
 
@@ -120,9 +132,34 @@ func (g *IodizedSaltGenerator) start() {
 		} else {
 			salt = make([]byte, g.saltSize)
 		}
-		_, err := io.ReadFull(g.source, salt)
+		// lock has low cost for single thread
+		g.muSource.Lock()
+		tokenEnd := g.begin + g.tokenLen
+		if tokenEnd > len(g.source) {
+			g.begin = 0
+			g.tokenLen++
+			tokenEnd = g.begin + g.tokenLen
+		}
+		kdf := hkdf.New(sha1.New, g.source[g.begin:tokenEnd], salt, g.kdfInfo)
+		g.begin += g.tokenLen / 3
+		g.muSource.Unlock()
+		if g.tokenLen >= 100 {
+			go func() {
+				// fetch the new source
+				if ns, e := NewIodizedSaltGenerator(g.salt, g.saltSize, 0, false); e == nil {
+					ns.Close()
+					g.muSource.Lock()
+					g.source = ns.source
+					g.kdfInfo = ns.kdfInfo
+					g.begin = ns.begin
+					g.tokenLen = ns.tokenLen
+					g.muSource.Unlock()
+				}
+			}()
+		}
+		_, err := io.ReadFull(kdf, salt)
 		if err != nil {
-			break
+			log.Fatal("IodizedSaltGenerator.start:", err)
 		}
 		select {
 		case <-g.closed:
