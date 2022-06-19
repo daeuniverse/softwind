@@ -20,13 +20,26 @@ const (
 	RandomSaltGeneratorType
 )
 
-var DefaultSaltGeneratorType = IodizedSaltGeneratorType
+const DefaultBucketSize = 300
+
+var (
+	DefaultSaltGeneratorType = IodizedSaltGeneratorType
+	DefaultIodizedSource     = "https://github.com/explore"
+	saltGenerators           = make(map[int]SaltGenerator)
+	muGenerators             sync.Mutex
+)
 
 func GetSaltGenerator(masterKey []byte, saltLen int) (sg SaltGenerator, err error) {
-	MuGenerators.Lock()
-	sg, ok := SaltGenerators[saltLen]
+	muGenerators.Lock()
+	sg, ok := saltGenerators[saltLen]
 	if !ok {
-		MuGenerators.Unlock()
+		dummy := NewDummySaltGenerator()
+		saltGenerators[saltLen] = dummy
+		muGenerators.Unlock()
+		defer func() {
+			dummy.Success = err == nil
+			close(dummy.Closed)
+		}()
 		switch DefaultSaltGeneratorType {
 		case IodizedSaltGeneratorType:
 			sg, err = NewIodizedSaltGenerator(masterKey, saltLen, DefaultBucketSize, true)
@@ -39,21 +52,24 @@ func GetSaltGenerator(masterKey []byte, saltLen int) (sg SaltGenerator, err erro
 				return nil, err
 			}
 		}
-		MuGenerators.Lock()
-		SaltGenerators[saltLen] = sg
-		MuGenerators.Unlock()
+		muGenerators.Lock()
+		saltGenerators[saltLen] = sg
+		muGenerators.Unlock()
 	} else {
-		MuGenerators.Unlock()
+		muGenerators.Unlock()
+		if g, isBuilding := sg.(*DummySaltGenerator); isBuilding {
+			<-g.Closed
+			if g.Success {
+				muGenerators.Lock()
+				sg = saltGenerators[saltLen]
+				muGenerators.Unlock()
+			} else {
+				return GetSaltGenerator(masterKey, saltLen)
+			}
+		}
 	}
 	return sg, nil
 }
-
-const DefaultBucketSize = 300
-
-var (
-	SaltGenerators = make(map[int]SaltGenerator)
-	MuGenerators   sync.Mutex
-)
 
 type SaltGenerator interface {
 	Get() []byte
@@ -70,7 +86,7 @@ type IodizedSaltGenerator struct {
 }
 
 func NewIodizedSaltGenerator(salt []byte, saltSize, bucketSize int, fromPool bool) (*IodizedSaltGenerator, error) {
-	resp, err := http.Get("https://github.com/explore")
+	resp, err := http.Get(DefaultIodizedSource)
 	if err != nil {
 		return nil, err
 	}
@@ -149,5 +165,23 @@ func (g *RandomSaltGenerator) Get() []byte {
 }
 
 func (g *RandomSaltGenerator) Close() error {
+	return nil
+}
+
+type DummySaltGenerator struct {
+	Closed  chan struct{}
+	Success bool
+}
+
+func NewDummySaltGenerator() *DummySaltGenerator {
+	return &DummySaltGenerator{Closed: make(chan struct{})}
+}
+
+func (g *DummySaltGenerator) Get() []byte {
+	return nil
+}
+
+func (g *DummySaltGenerator) Close() error {
+	close(g.Closed)
 	return nil
 }
