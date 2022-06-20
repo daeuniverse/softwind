@@ -3,6 +3,7 @@ package shadowsocks
 import (
 	"crypto/sha1"
 	"fmt"
+	"github.com/mzz2017/softwind/common"
 	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/mzz2017/softwind/pool"
 	"golang.org/x/crypto/hkdf"
@@ -87,6 +88,7 @@ type IodizedSaltGenerator struct {
 	tokenLen    int
 	kdfInfo     []byte
 	salt        []byte
+	cnt         [32]byte
 	closed      chan struct{}
 }
 
@@ -140,8 +142,9 @@ func (g *IodizedSaltGenerator) start() {
 			g.tokenLen++
 			tokenEnd = g.begin + g.tokenLen
 		}
-		kdf := hkdf.New(sha1.New, g.source[g.begin:tokenEnd], salt, g.kdfInfo)
+		kdf := hkdf.New(sha1.New, g.source[g.begin:tokenEnd], g.cnt[:], g.kdfInfo)
 		g.begin += g.tokenLen / 3
+		common.BytesIncBigEndian(g.cnt[:])
 		g.muSource.Unlock()
 		if g.tokenLen >= 100 {
 			go func() {
