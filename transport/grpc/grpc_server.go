@@ -1,7 +1,7 @@
 package grpc
 
 import (
-	"github.com/Qv2ray/gun/pkg/proto"
+	proto "github.com/mzz2017/softwind/pkg/gun_proto"
 	"github.com/mzz2017/softwind/pool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

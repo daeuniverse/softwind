@@ -3,8 +3,8 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"github.com/Qv2ray/gun/pkg/cert"
-	"github.com/Qv2ray/gun/pkg/proto"
+	"github.com/mzz2017/softwind/pkg/cert"
+	proto "github.com/mzz2017/softwind/pkg/gun_proto"
 	"github.com/mzz2017/softwind/pool"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
