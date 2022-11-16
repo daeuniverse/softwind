@@ -60,6 +60,8 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 				// Error
 				return 0, err
 			}
+			// Clear the buf
+			c.reqBuf = nil
 
 			req.URL.Scheme = "http"
 			req.URL.Host = c.addr
