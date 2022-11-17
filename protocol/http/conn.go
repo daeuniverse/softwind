@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sync"
 )
 
 type Conn struct {
@@ -20,6 +21,7 @@ type Conn struct {
 	addr  string
 
 	chShakeFinished chan struct{}
+	muShake         sync.Mutex
 	reqBuf          io.ReadWriter
 }
 
@@ -34,11 +36,14 @@ func NewConn(c net.Conn, proxy *HttpProxy, addr string) *Conn {
 }
 
 func (c *Conn) Write(b []byte) (n int, err error) {
+	c.muShake.Lock()
 	select {
 	case <-c.chShakeFinished:
+		c.muShake.Unlock()
 		return c.Conn.Write(b)
 	default:
-		// The first write
+		// Handshake
+		defer c.muShake.Unlock()
 		_, firstLine, _ := bufio.ScanLines(b, true)
 		isHttpReq := regexp.MustCompile(`^\S+ \S+ HTTP/[\d.]+$`).Match(firstLine)
 
@@ -111,10 +116,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 				err = fmt.Errorf("connect server using proxy error, StatusCode [%d]", resp.StatusCode)
 				return 0, err
 			}
+			return c.Conn.Write(b)
 		}
 	}
-	<-c.chShakeFinished
-	return c.Conn.Write(b)
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
