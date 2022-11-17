@@ -91,7 +91,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		}
 		// https://www.rfc-editor.org/rfc/rfc7230#appendix-A.1.2
 		// As a result, clients are encouraged not to send the Proxy-Connection header field in any requests.
-		//req.Header.Set("Proxy-Connection", "Keep-Alive")
+		if len(req.Header.Values("Proxy-Connection")) > 0 {
+			req.Header.Del("Proxy-Connection")
+		}
 
 		err = req.WriteProxy(c.Conn)
 		if err != nil {
