@@ -170,6 +170,8 @@ func (c *ClientConn) Close() error {
 func (c *ClientConn) CloseWrite() error {
 	return c.tun.CloseSend()
 }
+
+// FIXME: LocalAddr is not RELIABLE.
 func (c *ClientConn) LocalAddr() net.Addr {
 	return c.addrTagger.ConnTagInfo.LocalAddr
 }
