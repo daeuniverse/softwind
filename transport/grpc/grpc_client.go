@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"io"
@@ -300,9 +301,10 @@ func (c *ClientConn) SetWriteDeadline(t time.Time) error {
 }
 
 type Dialer struct {
-	NextDialer  proxy.ContextDialer
-	ServiceName string
-	ServerName  string
+	NextDialer    proxy.ContextDialer
+	ServiceName   string
+	ServerName    string
+	AllowInsecure bool
 }
 
 func (d *Dialer) Dial(network string, address string) (net.Conn, error) {
@@ -310,7 +312,7 @@ func (d *Dialer) Dial(network string, address string) (net.Conn, error) {
 }
 
 func (d *Dialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
-	meta, cancel, err := getGrpcClientConn(ctx, d.NextDialer, d.ServerName, address)
+	meta, cancel, err := getGrpcClientConn(ctx, d.NextDialer, d.ServerName, address, d.AllowInsecure)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -332,10 +334,17 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 	return NewClientConn(tun, meta.addrTagger, streamCloser), nil
 }
 
-func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverName string, address string) (*clientConnMeta, ccCanceller, error) {
-	roots, err := cert.GetSystemCertPool()
-	if err != nil {
-		return nil, func() {}, fmt.Errorf("failed to get system certificate pool")
+func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverName string, address string, allowInsecure bool) (*clientConnMeta, ccCanceller, error) {
+	// allowInsecure?
+	var certOption grpc.DialOption
+	if allowInsecure {
+		certOption = grpc.WithTransportCredentials(insecure.NewCredentials())
+	} else {
+		roots, err := cert.GetSystemCertPool()
+		if err != nil {
+			return nil, func() {}, fmt.Errorf("failed to get system certificate pool")
+		}
+		certOption = grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(roots, serverName))
 	}
 
 	globalCCAccess.Lock()
@@ -362,8 +371,9 @@ func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverNa
 		cc:         nil,
 		addrTagger: &addrTagger{},
 	}
+	var err error
 	meta.cc, err = grpc.DialContext(ctx, address,
-		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(roots, serverName)),
+		certOption,
 		grpc.WithContextDialer(func(ctxGrpc context.Context, s string) (net.Conn, error) {
 			return dialer.DialContext(ctxGrpc, "tcp", s)
 		}), grpc.WithConnectParams(grpc.ConnectParams{
