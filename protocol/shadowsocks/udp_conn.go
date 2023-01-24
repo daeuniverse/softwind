@@ -20,6 +20,8 @@ type UDPConn struct {
 	masterKey  []byte
 	bloom      *disk_bloom.FilterGroup
 	sg         SaltGenerator
+
+	remoteAddr net.Addr
 }
 
 func NewUDPConn(conn net.PacketConn, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (*UDPConn, error) {
@@ -49,7 +51,7 @@ func (c *UDPConn) Close() error {
 }
 
 func (c *UDPConn) Read(b []byte) (n int, err error) {
-	n, _, err = c.ReadFrom(b)
+	n, c.remoteAddr, err = c.ReadFrom(b)
 	return
 }
 
@@ -58,7 +60,15 @@ func (c *UDPConn) Write(b []byte) (n int, err error) {
 }
 
 func (c *UDPConn) RemoteAddr() net.Addr {
-	return nil
+	if c.remoteAddr == nil {
+		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port))))
+		if err != nil {
+			return nil
+		}
+		return addr
+	} else {
+		return c.remoteAddr
+	}
 }
 
 func (c *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
