@@ -1,13 +1,9 @@
 package common
 
 import (
-	crand "crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
 	"github.com/eknkc/basex"
-	"math"
-	"math/big"
-	"math/rand"
 )
 
 const Alphabet = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789"
@@ -53,15 +49,6 @@ func Max(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func SeedSecurely() (err error) {
-	n, err := crand.Int(crand.Reader, big.NewInt(math.MaxInt64))
-	if err != nil {
-		return err
-	}
-	rand.Seed(n.Int64())
-	return nil
 }
 
 // StringToUUID5 is from https://github.com/XTLS/Xray-core/issues/158
