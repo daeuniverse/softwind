@@ -49,7 +49,7 @@ func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
 		if err != nil {
 			return nil, err
 		}
-		return NewUDPConn(conn.(net.PacketConn), mdata, d.key, nil)
+		return NewUDPConn(conn.(net.PacketConn), d.proxyAddress, mdata, d.key, nil)
 	default:
 		return nil, net.UnknownNetworkError(network)
 	}
