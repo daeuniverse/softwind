@@ -54,7 +54,7 @@ func (c *UDPConn) Close() error {
 }
 
 func (c *UDPConn) Read(b []byte) (n int, err error) {
-	n, c.remoteAddr, err = c.ReadFrom(b)
+	n, _, err = c.ReadFrom(b)
 	return
 }
 
@@ -148,5 +148,6 @@ func (c *UDPConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
 	}
 	copy(b, b[sizeMetadata:])
 	n -= sizeMetadata
+	c.remoteAddr = addr
 	return n, addr, nil
 }
