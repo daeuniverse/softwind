@@ -8,11 +8,9 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
-	"time"
 )
 
 type UDPConn struct {
-	Timeout time.Duration
 	net.PacketConn
 
 	proxyAddress string
@@ -23,6 +21,7 @@ type UDPConn struct {
 	bloom      *disk_bloom.FilterGroup
 	sg         SaltGenerator
 
+	tgtAddr    *net.UDPAddr
 	remoteAddr net.Addr
 }
 
@@ -37,6 +36,10 @@ func NewUDPConn(conn net.PacketConn, proxyAddress string, metadata protocol.Meta
 	if err != nil {
 		return nil, err
 	}
+	tgtAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(metadata.Hostname, strconv.Itoa(int(metadata.Port))))
+	if err != nil {
+		return nil, err
+	}
 	c := &UDPConn{
 		PacketConn:   conn,
 		proxyAddress: proxyAddress,
@@ -45,6 +48,8 @@ func NewUDPConn(conn net.PacketConn, proxyAddress string, metadata protocol.Meta
 		masterKey:    key,
 		bloom:        bloom,
 		sg:           sg,
+		tgtAddr:      tgtAddr,
+		remoteAddr:   tgtAddr,
 	}
 	return c, nil
 }
@@ -59,7 +64,10 @@ func (c *UDPConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *UDPConn) Write(b []byte) (n int, err error) {
-	return 0, net.InvalidAddrError("")
+	if err != nil {
+		return 0, err
+	}
+	return c.WriteTo(b, c.tgtAddr)
 }
 
 func (c *UDPConn) RemoteAddr() net.Addr {

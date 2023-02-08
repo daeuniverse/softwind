@@ -148,7 +148,7 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 		if errors.Is(err, protocol.ErrReplayAttack) {
 			return 0, fmt.Errorf("%v: %w", ErrFailInitCipher, err)
 		}
-		return 0, fmt.Errorf("%w: %v", ErrFailInitCipher, err)
+		return 0, fmt.Errorf("%v: %w", ErrFailInitCipher, err)
 	}
 	c.mutex.Lock()
 	if c.indexToRead < len(c.leftToRead) {
@@ -280,7 +280,7 @@ func (c *TCPConn) Write(b []byte) (n int, err error) {
 	}
 	defer pool.Put(buf)
 	if c.cipherWrite == nil {
-		return 0, fmt.Errorf("%w: %v", ErrFailInitCipher, err)
+		return 0, fmt.Errorf("%v: %w", ErrFailInitCipher, err)
 	}
 	c.seal(buf[offset:], toPack)
 	//log.Trace("to write(%p): %v", &b, hex.EncodeToString(buf[:c.cipherConf.SaltLen]))

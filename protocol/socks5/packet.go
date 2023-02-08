@@ -135,7 +135,7 @@ func (c *PktConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *PktConn) Write(b []byte) (n int, err error) {
-	return 0, net.InvalidAddrError("")
+	return c.WriteTo(b, c.target)
 }
 
 func (c *PktConn) RemoteAddr() net.Addr {
