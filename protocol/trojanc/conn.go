@@ -25,9 +25,9 @@ type Conn struct {
 	metadata Metadata
 	pass     [56]byte
 
-	onceWriteMutex sync.Mutex
-	onceWrite      bool
-	onceRead       sync.Once
+	writeMutex sync.Mutex
+	onceWrite  bool
+	onceRead   sync.Once
 }
 
 func NewConn(conn net.Conn, metadata Metadata, password string) (c *Conn, err error) {
@@ -42,17 +42,16 @@ func NewConn(conn net.Conn, metadata Metadata, password string) (c *Conn, err er
 	if metadata.IsClient {
 		time.AfterFunc(100*time.Millisecond, func() {
 			// avoid the situation where the server sends messages first
-			c.onceWriteMutex.Lock()
+			c.writeMutex.Lock()
+			defer c.writeMutex.Unlock()
 			if !c.onceWrite {
 				buf := c.reqHeaderFromPool(nil)
 				defer pool.Put(buf)
 				if _, err = c.Conn.Write(buf); err != nil {
-					c.onceWriteMutex.Unlock()
 					return
 				}
 				c.onceWrite = true
 			}
-			c.onceWriteMutex.Unlock()
 		})
 	}
 	return c, nil
@@ -72,10 +71,10 @@ func (c *Conn) reqHeaderFromPool(payload []byte) (buf []byte) {
 }
 
 func (c *Conn) Write(b []byte) (n int, err error) {
-	c.onceWriteMutex.Lock()
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
 	if !c.onceWrite {
 		if c.metadata.IsClient {
-			defer c.onceWriteMutex.Unlock()
 			buf := c.reqHeaderFromPool(b)
 			defer pool.Put(buf)
 			if _, err = c.Conn.Write(buf); err != nil {
@@ -85,7 +84,6 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			return len(b), nil
 		}
 	}
-	c.onceWriteMutex.Unlock()
 	return c.Conn.Write(b)
 }
 

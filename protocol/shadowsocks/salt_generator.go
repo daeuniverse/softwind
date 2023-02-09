@@ -25,7 +25,7 @@ const (
 const DefaultBucketSize = 300
 
 var (
-	DefaultSaltGeneratorType = IodizedSaltGeneratorType
+	DefaultSaltGeneratorType = RandomSaltGeneratorType
 	DefaultIodizedSource     = "https://github.com/explore"
 	saltGenerators           = make(map[int]SaltGenerator)
 	muGenerators             sync.Mutex

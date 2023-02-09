@@ -34,16 +34,15 @@ type TCPConn struct {
 	cipherConf CipherConf
 	masterKey  []byte
 
-	cipherRead     cipher.AEAD
-	cipherWrite    cipher.AEAD
-	onceRead       sync.Once
-	onceWrite      bool
-	onceWriteMutex sync.Mutex
-	nonceRead      []byte
-	nonceWrite     []byte
+	cipherRead  cipher.AEAD
+	cipherWrite cipher.AEAD
+	onceRead    sync.Once
+	onceWrite   bool
+	writeMutex  sync.Mutex
+	nonceRead   []byte
+	nonceWrite  []byte
 
-	// mutex protect leftToRead, indexToRead
-	mutex       sync.Mutex
+	readMutex   sync.Mutex
 	leftToRead  []byte
 	indexToRead int
 
@@ -89,23 +88,21 @@ func NewTCPConn(conn net.Conn, metadata protocol.Metadata, masterKey []byte, blo
 	if metadata.IsClient {
 		time.AfterFunc(100*time.Millisecond, func() {
 			// avoid the situation where the server sends messages first
-			c.onceWriteMutex.Lock()
+			c.writeMutex.Lock()
+			defer c.writeMutex.Unlock()
 			if !c.onceWrite {
 				buf, offset, toWrite, err := c.initWriteFromPool(nil)
 				if err != nil {
-					c.onceWriteMutex.Unlock()
 					return
 				}
 				defer pool.Put(buf)
 				defer pool.Put(toWrite)
 				buf = c.seal(buf[offset:], toWrite)
 				if _, err = c.Conn.Write(buf); err != nil {
-					c.onceWriteMutex.Unlock()
 					return
 				}
 				c.onceWrite = true
 			}
-			c.onceWriteMutex.Unlock()
 		})
 	}
 	return &c, nil
@@ -116,6 +113,8 @@ func (c *TCPConn) Close() error {
 }
 
 func (c *TCPConn) Read(b []byte) (n int, err error) {
+	c.readMutex.Lock()
+	defer c.readMutex.Unlock()
 	c.onceRead.Do(func() {
 		var salt = pool.Get(c.cipherConf.SaltLen)
 		defer pool.Put(salt)
@@ -150,7 +149,6 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 		}
 		return 0, fmt.Errorf("%v: %w", ErrFailInitCipher, err)
 	}
-	c.mutex.Lock()
 	if c.indexToRead < len(c.leftToRead) {
 		n = copy(b, c.leftToRead[c.indexToRead:])
 		c.indexToRead += n
@@ -158,10 +156,8 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 			// Put the buf back
 			pool.Put(c.leftToRead)
 		}
-		c.mutex.Unlock()
 		return n, nil
 	}
-	c.mutex.Unlock()
 	// Chunk
 	chunk, err := c.readChunkFromPool()
 	if err != nil {
@@ -170,10 +166,8 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 	n = copy(b, chunk)
 	if n < len(chunk) {
 		// Wait for the next read
-		c.mutex.Lock()
 		c.leftToRead = chunk
 		c.indexToRead = n
-		c.mutex.Unlock()
 	} else {
 		// Full reading. Put the buf back
 		pool.Put(chunk)
@@ -260,20 +254,19 @@ func (c *TCPConn) initWriteFromPool(b []byte) (buf []byte, offset int, toWrite [
 }
 
 func (c *TCPConn) Write(b []byte) (n int, err error) {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
 	var buf []byte
 	var toPack []byte
 	var offset int
-	c.onceWriteMutex.Lock()
 	if !c.onceWrite {
 		c.onceWrite = true
 		buf, offset, toPack, err = c.initWriteFromPool(b)
 		if err != nil {
-			c.onceWriteMutex.Unlock()
 			return 0, err
 		}
 		defer pool.Put(toPack)
 	}
-	c.onceWriteMutex.Unlock()
 	if buf == nil {
 		buf = pool.Get(EncryptedPayloadLen(len(b), c.cipherConf.TagLen))
 		toPack = b

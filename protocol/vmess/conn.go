@@ -29,6 +29,7 @@ type Conn struct {
 
 	NewAEAD func(key []byte) (cipher.AEAD, error)
 
+	writeMutex            sync.Mutex
 	writeBodyCipher       cipher.AEAD
 	writeNonceGenerator   BytesGenerator
 	writeChunkSizeParser  ChunkSizeEncoder
@@ -47,7 +48,7 @@ type Conn struct {
 	responseBodyIV  [16]byte
 	responseAuth    byte
 
-	mutex       sync.Mutex
+	readMutex   sync.Mutex
 	leftToRead  []byte
 	indexToRead int
 }
@@ -213,6 +214,8 @@ func (c *Conn) WriteReqHeader() (err error) {
 
 // Write writes data to the connection. Empty b should be written before closing the connection to indicate the terminal.
 func (c *Conn) Write(b []byte) (n int, err error) {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
 	var encRespHeader []byte
 	c.initWrite.Do(func() {
 		if !c.metadata.IsClient {
@@ -264,7 +267,8 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
-	c.mutex.Lock()
+	c.readMutex.Lock()
+	defer c.readMutex.Unlock()
 	c.initRead.Do(func() {
 		if c.metadata.IsClient {
 			bufSize := pool.Get(18) // 2+16
@@ -380,16 +384,13 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 		}
 	})
 	if err != nil {
-		c.mutex.Unlock()
 		return 0, err
 	}
 	if b == nil {
-		c.mutex.Unlock()
 		return 0, nil
 	}
 	if c.readNonceGenerator == nil {
 		// did not initiate successfully
-		c.mutex.Unlock()
 		return 0, net.ErrClosed
 	}
 
@@ -401,10 +402,8 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 			// put the buf back
 			pool.Put(c.leftToRead)
 		}
-		c.mutex.Unlock()
 		return n, nil
 	}
-	c.mutex.Unlock()
 
 	chunk, err := c.readChunkFromPool()
 	if err != nil {
@@ -414,10 +413,8 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	n = copy(b, chunk)
 	if n < len(chunk) {
 		// wait for the next read
-		c.mutex.Lock()
 		c.leftToRead = chunk
 		c.indexToRead = n
-		c.mutex.Unlock()
 	} else {
 		// full reading. put the buf back
 		pool.Put(chunk)
