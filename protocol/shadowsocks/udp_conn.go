@@ -89,7 +89,10 @@ func (c *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	addrPort := addr.(*net.UDPAddr).AddrPort()
 	metadata.Hostname = addrPort.Addr().String()
 	metadata.Port = addrPort.Port()
-	prefix := metadata.BytesFromPool()
+	prefix, err := metadata.BytesFromPool()
+	if err != nil {
+		return 0, err
+	}
 	defer pool.Put(prefix)
 	chunk := pool.Get(len(prefix) + len(b))
 	defer pool.Put(chunk)

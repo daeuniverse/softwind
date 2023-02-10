@@ -213,7 +213,10 @@ func (c *TCPConn) initWriteFromPool(b []byte) (buf []byte, offset int, toWrite [
 		defer pool.Put(suffix)
 	}
 	if c.metadata.IsClient || c.metadata.Type == protocol.MetadataTypeMsg {
-		prefix = mdata.BytesFromPool()
+		prefix, err = mdata.BytesFromPool()
+		if err != nil {
+			return nil, 0, nil, err
+		}
 		defer pool.Put(prefix)
 	}
 	toWrite = pool.Get(len(prefix) + len(b) + len(suffix))

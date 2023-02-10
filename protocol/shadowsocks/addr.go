@@ -103,22 +103,33 @@ func NewMetadata(bytesMetadata []byte) (*Metadata, error) {
 	}
 }
 
-func (meta *Metadata) Bytes() (b []byte) {
-	poolBytes := meta.BytesFromPool()
+func (meta *Metadata) Bytes() (b []byte, err error) {
+	poolBytes, err := meta.BytesFromPool()
+	if err != nil {
+		return nil, err
+	}
 	b = make([]byte, len(poolBytes))
 	copy(b, poolBytes)
 	pool.Put(poolBytes)
-	return b
+	return b, nil
 }
-func (meta *Metadata) BytesFromPool() (b []byte) {
+func (meta *Metadata) BytesFromPool() (b []byte, err error) {
 	switch meta.Type {
 	case protocol.MetadataTypeIPv4:
+		ip := net.ParseIP(meta.Hostname)
+		if ip == nil {
+			return nil, fmt.Errorf("not a valid ipv4: %v", meta.Hostname)
+		}
 		b = pool.Get(1 + 4 + 2)
-		copy(b[1:], net.ParseIP(meta.Hostname).To4()[:4])
+		copy(b[1:], ip.To4()[:4])
 		binary.BigEndian.PutUint16(b[5:], meta.Port)
 	case protocol.MetadataTypeIPv6:
+		ip := net.ParseIP(meta.Hostname)
+		if ip == nil {
+			return nil, fmt.Errorf("not a valid ipv6: %v", meta.Hostname)
+		}
 		b = pool.Get(1 + 16 + 2)
-		copy(b[1:], net.ParseIP(meta.Hostname)[:16])
+		copy(b[1:], ip[:16])
 		binary.BigEndian.PutUint16(b[17:], meta.Port)
 	case protocol.MetadataTypeDomain:
 		hostname := []byte(meta.Hostname)
@@ -133,5 +144,5 @@ func (meta *Metadata) BytesFromPool() (b []byte) {
 		binary.BigEndian.PutUint32(b[2:], meta.LenMsgBody)
 	}
 	b[0] = MetadataTypeToByte(meta.Type)
-	return b
+	return b, nil
 }
