@@ -1,7 +1,11 @@
 package trojanc
 
 import (
+	"encoding/binary"
+	"fmt"
+	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
+	"io"
 	"net"
 	"strconv"
 )
@@ -15,11 +19,27 @@ func (c *Conn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 		}
 	}
 	addr = c.cachedRAddrIP
-	n, err = c.Read(p)
+
+	bLen := pool.Get(2)
+	defer pool.Put(bLen)
+	if _, err = io.ReadFull(c, bLen); err != nil {
+		return 0, nil, err
+	}
+	length := int(binary.BigEndian.Uint16(bLen))
+	if len(p) < length {
+		return 0, nil, fmt.Errorf("buf size is not enough")
+	}
+	n, err = io.ReadFull(c, p[:length])
 	return n, addr, err
 }
 
 func (c *Conn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	bLen := pool.Get(2)
+	defer pool.Put(bLen)
+	binary.BigEndian.PutUint16(bLen, uint16(len(p)))
+	if _, err = c.Write(bLen); err != nil {
+		return 0, err
+	}
 	return c.Write(p)
 }
 
@@ -40,4 +60,3 @@ func (c *Conn) RemoteAddr() net.Addr {
 		return c.Conn.RemoteAddr()
 	}
 }
-
