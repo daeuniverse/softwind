@@ -5,6 +5,7 @@ import (
 	"golang.org/x/net/proxy"
 	"net"
 	"net/url"
+	"strconv"
 )
 
 // HttpProxy is an HTTP/HTTPS proxy.
@@ -31,9 +32,11 @@ func NewHTTPProxy(u *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
 		if serverName == "" {
 			serverName = u.Hostname()
 		}
+		skipVerify, _ := strconv.ParseBool(u.Query().Get("allowInsecure"))
 		s.TlsConfig = &tls.Config{
-			NextProtos: []string{"h2", "http/1.1"},
-			ServerName: serverName,
+			NextProtos:         []string{"h2", "http/1.1"},
+			ServerName:         serverName,
+			InsecureSkipVerify: skipVerify,
 		}
 	}
 	return s, nil
