@@ -12,6 +12,9 @@ func (c *Conn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	buf := pool.Get(MaxUDPSize)
 	defer pool.Put(buf)
 	n, err = c.Read(buf)
+	if err != nil {
+		return 0, nil, err
+	}
 
 	if c.metadata.IsPacketAddr() {
 		addrTyp, address, err := ExtractPacketAddr(buf)
