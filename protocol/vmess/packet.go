@@ -1,6 +1,7 @@
 package vmess
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 
@@ -19,6 +20,9 @@ func (c *Conn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	if c.metadata.IsPacketAddr() {
 		addrTyp, address, err := ExtractPacketAddr(buf)
 		addrLen := PacketAddrLength(addrTyp)
+		if n < addrLen {
+			return 0, nil, fmt.Errorf("not enough data to read for PacketAddr")
+		}
 		copy(p, buf[addrLen:n])
 		return n - addrLen, &address, err
 	} else {
