@@ -22,6 +22,7 @@ type Dialer struct {
 	nextDialer      proxy.Dialer
 	metadata        protocol.Metadata
 	key             []byte
+	shouldFullCone  bool
 }
 
 func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, error) {
@@ -48,6 +49,7 @@ func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, e
 		nextDialer:      nextDialer,
 		metadata:        metadata,
 		key:             NewID(id).CmdKey(),
+		shouldFullCone:  header.ShouldFullCone,
 	}, nil
 }
 
@@ -72,6 +74,10 @@ func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
 		}
 		mdata.Cipher = d.metadata.Cipher
 		mdata.IsClient = d.metadata.IsClient
+		if d.shouldFullCone && network == "udp" {
+			mdata.Hostname = SeqPacketMagicAddress
+			mdata.Type = protocol.MetadataTypeDomain
+		}
 
 		if d.protocol == protocol.ProtocolVMessTlsGrpc {
 			d.nextDialer = &grpc.Dialer{

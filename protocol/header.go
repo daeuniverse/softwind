@@ -7,4 +7,5 @@ type Header struct {
 	Cipher          string
 	Password        string
 	IsClient        bool
+	ShouldFullCone  bool
 }
