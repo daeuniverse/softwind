@@ -8,6 +8,7 @@ import (
 	"fmt"
 	disk_bloom "github.com/mzz2017/disk-bloom"
 	"github.com/mzz2017/softwind/common"
+	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"golang.org/x/crypto/hkdf"
@@ -15,7 +16,6 @@ import (
 	"hash/fnv"
 	"io"
 	"math"
-	"net"
 	"sync"
 	"time"
 )
@@ -29,7 +29,7 @@ var (
 )
 
 type TCPConn struct {
-	net.Conn
+	netproxy.Conn
 	metadata   protocol.Metadata
 	cipherConf CipherConf
 	masterKey  []byte
@@ -63,7 +63,7 @@ func EncryptedPayloadLen(plainTextLen int, tagLen int) int {
 	return plainTextLen + n*(2+tagLen+tagLen)
 }
 
-func NewTCPConn(conn net.Conn, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (crw *TCPConn, err error) {
+func NewTCPConn(conn netproxy.Conn, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (crw *TCPConn, err error) {
 	conf := CiphersConf[metadata.Cipher]
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")

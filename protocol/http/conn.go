@@ -6,8 +6,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/mzz2017/softwind/netproxy"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -15,7 +15,7 @@ import (
 )
 
 type Conn struct {
-	net.Conn
+	netproxy.Conn
 
 	proxy *HttpProxy
 	addr  string
@@ -25,7 +25,7 @@ type Conn struct {
 	reqBuf          io.ReadWriter
 }
 
-func NewConn(c net.Conn, proxy *HttpProxy, addr string) *Conn {
+func NewConn(c netproxy.Conn, proxy *HttpProxy, addr string) *Conn {
 	return &Conn{
 		Conn:            c,
 		proxy:           proxy,
@@ -101,7 +101,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		}
 
 		if isHttpReq {
-			// Allow Read here to void race.
+			// Allow read here to void race.
 			close(c.chShakeFinished)
 			return len(b), nil
 		} else {
@@ -114,7 +114,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 				return 0, err
 			}
 			resp.Body.Close()
-			// Allow Read here to avoid race.
+			// Allow read here to avoid race.
 			close(c.chShakeFinished)
 			if resp.StatusCode != 200 {
 				err = fmt.Errorf("connect server using proxy error, StatusCode [%d]", resp.StatusCode)

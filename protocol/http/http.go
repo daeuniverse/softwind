@@ -2,8 +2,7 @@ package http
 
 import (
 	"crypto/tls"
-	"golang.org/x/net/proxy"
-	"net"
+	"github.com/mzz2017/softwind/netproxy"
 	"net/url"
 	"strconv"
 )
@@ -15,10 +14,10 @@ type HttpProxy struct {
 	HaveAuth  bool
 	Username  string
 	Password  string
-	dialer    proxy.Dialer
+	dialer    netproxy.Dialer
 }
 
-func NewHTTPProxy(u *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
+func NewHTTPProxy(u *url.URL, forward netproxy.Dialer) (netproxy.Dialer, error) {
 	s := new(HttpProxy)
 	s.Host = u.Host
 	s.dialer = forward
@@ -42,14 +41,22 @@ func NewHTTPProxy(u *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
 	return s, nil
 }
 
-func (s *HttpProxy) Dial(network, addr string) (net.Conn, error) {
-	// Dial and create the https client connection.
-	c, err := s.dialer.Dial("tcp", s.Host)
+func (s *HttpProxy) DialUdp(addr string) (netproxy.PacketConn, error) {
+	return nil, netproxy.UnsupportedTunnelTypeError
+}
+
+func (s *HttpProxy) DialTcp(addr string) (netproxy.Conn, error) {
+	// DialTcp and create the https client connection.
+	c, err := s.dialer.DialTcp(s.Host)
 	if err != nil {
 		return nil, err
 	}
 	if s.TlsConfig != nil {
-		c = tls.Client(c, s.TlsConfig)
+		c = tls.Client(&netproxy.FakeNetConn{
+			Conn:  c,
+			LAddr: nil,
+			RAddr: nil,
+		}, s.TlsConfig)
 	}
 	return NewConn(c, s, addr), nil
 }

@@ -77,7 +77,7 @@ func (a Addr) String() string {
 	return net.JoinHostPort(host, port)
 }
 
-// Network returns network name. Implements net.Addr interface.
+// Network returns network name. Implements netip.AddrPort interface.
 func (a Addr) Network() string { return "socks" }
 
 // ReadAddr reads just enough bytes from r to get a valid Addr.

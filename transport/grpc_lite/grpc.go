@@ -2,19 +2,18 @@ package grpc_lite
 
 import (
 	"fmt"
-	"golang.org/x/net/proxy"
-	"net"
+	"github.com/mzz2017/softwind/netproxy"
 	"net/url"
 )
 
 // Grpc is a base Grpc struct
 type Grpc struct {
-	dialer    proxy.Dialer
+	dialer    netproxy.Dialer
 	gunConfig Config
 }
 
 // NewGrpc returns a Grpc infra.
-func NewGrpc(s string, d proxy.Dialer) (*Grpc, error) {
+func NewGrpc(s string, d netproxy.Dialer) (*Grpc, error) {
 	u, err := url.Parse(s)
 	if err != nil {
 		return nil, fmt.Errorf("NewGrpc: %w", err)
@@ -35,7 +34,7 @@ func NewGrpc(s string, d proxy.Dialer) (*Grpc, error) {
 	return t, nil
 }
 
-func (s *Grpc) Dial(network, addr string) (conn net.Conn, err error) {
+func (s *Grpc) Dial(network, addr string) (conn netproxy.Conn, err error) {
 	conf := s.gunConfig
 	conf.RemoteAddr = addr
 	if conn, err = NewGunClient(&conf).DialConn(); err != nil {

@@ -3,9 +3,9 @@ package vmess
 import (
 	"github.com/google/uuid"
 	"github.com/mzz2017/softwind/common"
+	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/transport/grpc"
-	"golang.org/x/net/proxy"
 	"net"
 )
 
@@ -19,13 +19,13 @@ type Dialer struct {
 	proxyAddress    string
 	proxySNI        string
 	grpcServiceName string
-	nextDialer      proxy.Dialer
+	nextDialer      netproxy.Dialer
 	metadata        protocol.Metadata
 	key             []byte
 	shouldFullCone  bool
 }
 
-func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, error) {
+func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dialer, error) {
 	metadata := protocol.Metadata{
 		IsClient: header.IsClient,
 	}
@@ -53,8 +53,8 @@ func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, e
 	}, nil
 }
 
-func NewDialerFactory(proto protocol.Protocol) func(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, error) {
-	return func(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, error) {
+func NewDialerFactory(proto protocol.Protocol) func(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dialer, error) {
+	return func(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dialer, error) {
 		d, err := NewDialer(nextDialer, header)
 		if err != nil {
 			return nil, err
@@ -65,7 +65,15 @@ func NewDialerFactory(proto protocol.Protocol) func(nextDialer proxy.Dialer, hea
 	}
 }
 
-func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
+func (d *Dialer) DialTcp(addr string) (c netproxy.Conn, err error) {
+	return d.Dial("tcp", addr)
+}
+
+func (d *Dialer) DialUdp(addr string) (c netproxy.PacketConn, err error) {
+	return d.Dial("udp", addr)
+}
+
+func (d *Dialer) Dial(network string, addr string) (c netproxy.FullConn, err error) {
 	switch network {
 	case "tcp", "udp":
 		mdata, err := protocol.ParseMetadata(addr)
@@ -81,13 +89,12 @@ func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
 
 		if d.protocol == protocol.ProtocolVMessTlsGrpc {
 			d.nextDialer = &grpc.Dialer{
-				NextDialer:  &protocol.DialerConverter{Dialer: d.nextDialer},
+				NextDialer:  &netproxy.ContextDialer{Dialer: d.nextDialer},
 				ServiceName: d.grpcServiceName,
 				ServerName:  d.proxySNI,
 			}
 		}
-
-		conn, err := d.nextDialer.Dial("tcp", d.proxyAddress)
+		conn, err := d.nextDialer.DialTcp(d.proxyAddress)
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +102,7 @@ func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
 		return NewConn(conn, Metadata{
 			Metadata: mdata,
 			Network:  network,
-		}, d.key)
+		}, addr ,d.key)
 	default:
 		return nil, net.UnknownNetworkError(network)
 	}

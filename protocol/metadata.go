@@ -59,3 +59,16 @@ func ParseMetadata(tgt string) (mdata Metadata, err error) {
 		Port:     uint16(port),
 	}, nil
 }
+
+func (m *Metadata) AddrPort() (netip.AddrPort, error) {
+	switch m.Type {
+	case MetadataTypeIPv4, MetadataTypeIPv6:
+		ip, err := netip.ParseAddr(m.Hostname)
+		if err != nil {
+			return netip.AddrPort{}, err
+		}
+		return netip.AddrPortFrom(ip, m.Port), nil
+	default:
+		return netip.AddrPort{}, fmt.Errorf("bad metadata type: %v; should be ip", m.Type)
+	}
+}

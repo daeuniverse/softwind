@@ -7,10 +7,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/mzz2017/softwind/common"
+	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/mzz2017/softwind/pool"
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 )
 
@@ -20,12 +22,13 @@ const (
 )
 
 type Conn struct {
-	net.Conn
-	initRead      sync.Once
-	initWrite     sync.Once
-	metadata      Metadata
-	cmdKey        []byte
-	cachedRAddrIP *net.UDPAddr
+	netproxy.Conn
+	initRead        sync.Once
+	initWrite       sync.Once
+	metadata        Metadata
+	cmdKey          []byte
+	dialTgt         string
+	dialTgtAddrPort netip.AddrPort // lazy resolve
 
 	NewAEAD func(key []byte) (cipher.AEAD, error)
 
@@ -53,7 +56,7 @@ type Conn struct {
 	indexToRead int
 }
 
-func NewConn(conn net.Conn, metadata Metadata, cmdKey []byte) (c *Conn, err error) {
+func NewConn(conn netproxy.Conn, metadata Metadata, dialTgt string, cmdKey []byte) (c *Conn, err error) {
 	// DO NOT use pool here because Close() cannot interrupt the reading or writing, which will modify the value of the pool buffer.
 	key := make([]byte, len(cmdKey))
 	copy(key, cmdKey)
@@ -61,6 +64,7 @@ func NewConn(conn net.Conn, metadata Metadata, cmdKey []byte) (c *Conn, err erro
 		Conn:     conn,
 		metadata: metadata,
 		cmdKey:   key,
+		dialTgt:  dialTgt,
 	}
 	if metadata.IsClient {
 		if err = c.WriteReqHeader(); err != nil {
@@ -212,8 +216,23 @@ func (c *Conn) WriteReqHeader() (err error) {
 	return err
 }
 
-// Write writes data to the connection. Empty b should be written before closing the connection to indicate the terminal.
 func (c *Conn) Write(b []byte) (n int, err error) {
+	if c.metadata.IsPacketAddr() {
+		if !c.dialTgtAddrPort.IsValid() {
+			tgt, err := net.ResolveUDPAddr("udp", c.dialTgt)
+			if err != nil {
+				return 0, err
+			}
+			c.dialTgtAddrPort = tgt.AddrPort()
+		}
+		return c.WriteTo(b, c.dialTgtAddrPort.String())
+	} else {
+		return c.write(b)
+	}
+}
+
+// Writes data to the connection. Empty b should be written before closing the connection to indicate the terminal.
+func (c *Conn) write(b []byte) (n int, err error) {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
 	var encRespHeader []byte
@@ -267,6 +286,15 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
+	if c.metadata.IsPacketAddr() {
+		n, _, err = c.ReadFrom(b)
+		return n, err
+	} else {
+		return c.read(b)
+	}
+}
+
+func (c *Conn) read(b []byte) (n int, err error) {
 	c.readMutex.Lock()
 	defer c.readMutex.Unlock()
 	c.initRead.Do(func() {

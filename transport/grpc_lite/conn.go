@@ -5,9 +5,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/mzz2017/softwind/netproxy"
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"sync"
 	"time"
@@ -21,8 +23,8 @@ type GunConn struct {
 	reader io.Reader
 	writer io.Writer
 	closer io.Closer
-	local  net.Addr
-	remote net.Addr
+	local  netip.AddrPort
+	remote netip.AddrPort
 	// mu protect done
 	mu   sync.Mutex
 	done chan struct{}
@@ -38,6 +40,7 @@ type Client struct {
 }
 
 type Config struct {
+	NextDialer  netproxy.TcpDialer
 	RemoteAddr  string
 	ServerName  string
 	ServiceName string
@@ -49,15 +52,27 @@ func NewGunClient(config *Config) *Client {
 	var dialFunc func(network, addr string, cfg *tls.Config) (net.Conn, error) = nil
 	if config.Cleartext {
 		dialFunc = func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-			return net.Dial(network, addr)
-		}
-	} else {
-		dialFunc = func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-			pconn, err := net.Dial(network, addr)
+			conn, err := config.NextDialer.DialTcp(addr)
 			if err != nil {
 				return nil, err
 			}
-
+			return &netproxy.FakeNetConn{
+				Conn:  conn,
+				LAddr: nil,
+				RAddr: nil,
+			}, nil
+		}
+	} else {
+		dialFunc = func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+			conn, err := config.NextDialer.DialTcp(addr)
+			if err != nil {
+				return nil, err
+			}
+			pconn := &netproxy.FakeNetConn{
+				Conn:  conn,
+				LAddr: nil,
+				RAddr: nil,
+			}
 			cn := tls.Client(pconn, cfg)
 			if err := cn.Handshake(); err != nil {
 				return nil, err
@@ -117,7 +132,7 @@ func (cc ChainedClosable) Close() error {
 	return nil
 }
 
-func (cli *Client) DialConn() (net.Conn, error) {
+func (cli *Client) DialConn() (netproxy.Conn, error) {
 	reader, writer := io.Pipe()
 	request := &http.Request{
 		Method:     http.MethodPost,
@@ -138,26 +153,14 @@ func (cli *Client) DialConn() (net.Conn, error) {
 		_, _ = io.Copy(anotherWriter, response.Body)
 	}()
 
-	return newGunConn(anotherReader, writer, ChainedClosable{reader, writer, anotherReader}, nil, nil), nil
+	return newGunConn(anotherReader, writer, ChainedClosable{reader, writer, anotherReader}, netip.AddrPort{}, netip.AddrPort{}), nil
 }
 
 var (
 	ErrInvalidLength = errors.New("invalid length")
 )
 
-func newGunConn(reader io.Reader, writer io.Writer, closer io.Closer, local net.Addr, remote net.Addr) *GunConn {
-	if local == nil {
-		local = &net.TCPAddr{
-			IP:   []byte{0, 0, 0, 0},
-			Port: 0,
-		}
-	}
-	if remote == nil {
-		remote = &net.TCPAddr{
-			IP:   []byte{0, 0, 0, 0},
-			Port: 0,
-		}
-	}
+func newGunConn(reader io.Reader, writer io.Writer, closer io.Closer, local netip.AddrPort, remote netip.AddrPort) *GunConn {
 	return &GunConn{
 		reader: reader,
 		writer: writer,
@@ -243,11 +246,11 @@ func (g *GunConn) Close() error {
 	}
 }
 
-func (g *GunConn) LocalAddr() net.Addr {
+func (g *GunConn) LocalAddr() netip.AddrPort {
 	return g.local
 }
 
-func (g *GunConn) RemoteAddr() net.Addr {
+func (g *GunConn) RemoteAddr() netip.AddrPort {
 	return g.remote
 }
 

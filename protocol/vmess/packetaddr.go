@@ -15,25 +15,29 @@ func (m *Metadata) IsPacketAddr() bool {
 	return m.Network == "udp" && m.Type == protocol.MetadataTypeDomain && m.Hostname == SeqPacketMagicAddress
 }
 
-func ExtractPacketAddr(src []byte) (protocol.MetadataType, net.UDPAddr, error) {
+func ExtractPacketAddr(src []byte) (protocol.MetadataType, netip.AddrPort, error) {
 	addrType := ParsePacketAddrType(src[0])
 
 	if addrType == protocol.MetadataTypeInvalid {
-		return addrType, net.UDPAddr{}, errors.New("invalid packet addr type")
+		return addrType, netip.AddrPort{}, errors.New("invalid packet addr type")
 	}
 
 	if len(src) < PacketAddrLength(addrType) {
-		return addrType, net.UDPAddr{}, errors.New("invalid packet addr")
+		return addrType, netip.AddrPort{}, errors.New("invalid packet addr")
 	}
 
-	addr := net.UDPAddr{}
+	var addr netip.AddrPort
 	switch addrType {
 	case protocol.MetadataTypeIPv4:
-		addr.IP = net.IP(src[1:5])
-		addr.Port = int(binary.BigEndian.Uint16(src[5:7]))
+		addr = netip.AddrPortFrom(
+			netip.AddrFrom4(*(*[4]byte)(src[1:5])),
+			binary.BigEndian.Uint16(src[5:7]),
+		)
 	case protocol.MetadataTypeIPv6:
-		addr.IP = net.IP(src[1:17])
-		addr.Port = int(binary.BigEndian.Uint16(src[17:19]))
+		addr = netip.AddrPortFrom(
+			netip.AddrFrom16(*(*[16]byte)(src[1:17])),
+			binary.BigEndian.Uint16(src[17:19]),
+		)
 	}
 	return addrType, addr, nil
 }

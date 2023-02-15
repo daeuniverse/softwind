@@ -89,7 +89,7 @@ func (b *Reader) reset(buf []byte, r io.Reader) {
 	}
 }
 
-var errNegativeRead = errors.New("bufio: reader returned negative count from Read")
+var errNegativeRead = errors.New("bufio: reader returned negative count from read")
 
 // fill reads a new chunk into the buffer.
 func (b *Reader) fill() {
@@ -104,7 +104,7 @@ func (b *Reader) fill() {
 		panic("bufio: tried to fill full buffer")
 	}
 
-	// Read new data: try a limited number of times.
+	// read new data: try a limited number of times.
 	for i := maxConsecutiveEmptyReads; i > 0; i-- {
 		n, err := b.rd.Read(b.buf[b.w:])
 		if n < 0 {
@@ -217,7 +217,7 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 		}
 		if len(p) >= len(b.buf) {
 			// Large read, empty buffer.
-			// Read directly into p to avoid copy.
+			// read directly into p to avoid copy.
 			n, b.err = b.rd.Read(p)
 			if n < 0 {
 				panic(errNegativeRead)
@@ -545,7 +545,7 @@ func (b *Reader) WriteTo(w io.Writer) (n int64, err error) {
 	return n, b.readErr()
 }
 
-var errNegativeWrite = errors.New("bufio: writer returned negative count from Write")
+var errNegativeWrite = errors.New("bufio: writer returned negative count from write")
 
 // writeBuf writes the Reader's buffer to the writer.
 func (b *Reader) writeBuf(w io.Writer) (int64, error) {
@@ -649,7 +649,7 @@ func (b *Writer) Write(p []byte) (nn int, err error) {
 		var n int
 		if b.Buffered() == 0 {
 			// Large write, empty buffer.
-			// Write directly from p to avoid copy.
+			// write directly from p to avoid copy.
 			n, b.err = b.wr.Write(p)
 		} else {
 			n = copy(b.buf[b.n:], p)

@@ -3,6 +3,7 @@ package shadowsocks
 import (
 	"fmt"
 	disk_bloom "github.com/mzz2017/disk-bloom"
+	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"net"
@@ -10,8 +11,8 @@ import (
 	"strconv"
 )
 
-type UDPConn struct {
-	net.PacketConn
+type UdpConn struct {
+	netproxy.PacketConn
 
 	proxyAddress string
 
@@ -21,11 +22,10 @@ type UDPConn struct {
 	bloom      *disk_bloom.FilterGroup
 	sg         SaltGenerator
 
-	tgtAddr    *net.UDPAddr
-	remoteAddr net.Addr
+	tgtAddr string
 }
 
-func NewUDPConn(conn net.PacketConn, proxyAddress string, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (*UDPConn, error) {
+func NewUdpConn(conn netproxy.PacketConn, proxyAddress string, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (*UdpConn, error) {
 	conf := CiphersConf[metadata.Cipher]
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
@@ -36,11 +36,7 @@ func NewUDPConn(conn net.PacketConn, proxyAddress string, metadata protocol.Meta
 	if err != nil {
 		return nil, err
 	}
-	tgtAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(metadata.Hostname, strconv.Itoa(int(metadata.Port))))
-	if err != nil {
-		return nil, err
-	}
-	c := &UDPConn{
+	c := &UdpConn{
 		PacketConn:   conn,
 		proxyAddress: proxyAddress,
 		metadata:     metadata,
@@ -48,47 +44,38 @@ func NewUDPConn(conn net.PacketConn, proxyAddress string, metadata protocol.Meta
 		masterKey:    key,
 		bloom:        bloom,
 		sg:           sg,
-		tgtAddr:      tgtAddr,
-		remoteAddr:   tgtAddr,
+		tgtAddr:      net.JoinHostPort(metadata.Hostname, strconv.Itoa(int(metadata.Port))),
 	}
 	return c, nil
 }
 
-func (c *UDPConn) Close() error {
+func (c *UdpConn) Close() error {
 	return c.PacketConn.Close()
 }
 
-func (c *UDPConn) Read(b []byte) (n int, err error) {
+func (c *UdpConn) Read(b []byte) (n int, err error) {
 	n, _, err = c.ReadFrom(b)
 	return
 }
 
-func (c *UDPConn) Write(b []byte) (n int, err error) {
+func (c *UdpConn) Write(b []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
 	return c.WriteTo(b, c.tgtAddr)
 }
 
-func (c *UDPConn) RemoteAddr() net.Addr {
-	if c.remoteAddr == nil {
-		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port))))
-		if err != nil {
-			return nil
-		}
-		return addr
-	} else {
-		return c.remoteAddr
-	}
-}
-
-func (c *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+func (c *UdpConn) WriteTo(b []byte, addr string) (int, error) {
 	metadata := Metadata{
 		Metadata: c.metadata,
 	}
-	addrPort := addr.(*net.UDPAddr).AddrPort()
-	metadata.Hostname = addrPort.Addr().String()
-	metadata.Port = addrPort.Port()
+	mdata, err := protocol.ParseMetadata(addr)
+	if err != nil {
+		return 0, err
+	}
+	metadata.Hostname = mdata.Hostname
+	metadata.Port = mdata.Port
+	metadata.Type = mdata.Type
 	prefix, err := metadata.BytesFromPool()
 	if err != nil {
 		return 0, err
@@ -111,17 +98,13 @@ func (c *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if c.bloom != nil {
 		c.bloom.ExistOrAdd(toWrite[:c.cipherConf.SaltLen])
 	}
-	proxyAddr, err := net.ResolveUDPAddr("udp", c.proxyAddress)
-	if err != nil {
-		return 0, err
-	}
-	return c.PacketConn.WriteTo(toWrite, proxyAddr)
+	return c.PacketConn.WriteTo(toWrite, c.proxyAddress)
 }
 
-func (c *UDPConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
+func (c *UdpConn) ReadFrom(b []byte) (n int, addr netip.AddrPort, err error) {
 	n, addr, err = c.PacketConn.ReadFrom(b)
 	if err != nil {
-		return 0, nil, err
+		return 0, netip.AddrPort{}, err
 	}
 	enc := pool.Get(len(b))
 	defer pool.Put(enc)
@@ -142,23 +125,24 @@ func (c *UDPConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
 	// parse sAddr from metadata
 	sizeMetadata, err := BytesSizeForMetadata(b)
 	if err != nil {
-		return 0, nil, err
+		return 0, netip.AddrPort{}, err
 	}
 	mdata, err := NewMetadata(b)
 	if err != nil {
-		return 0, nil, err
+		return 0, netip.AddrPort{}, err
 	}
 	var typ protocol.MetadataType
 	switch typ {
 	case protocol.MetadataTypeIPv4, protocol.MetadataTypeIPv6:
-		ipport, err := netip.ParseAddrPort(net.JoinHostPort(mdata.Hostname, strconv.Itoa(int(mdata.Port))))
+		ip, err := netip.ParseAddr(mdata.Hostname)
 		if err != nil {
-			return 0, nil, err
+			return 0, netip.AddrPort{}, err
 		}
-		addr = net.UDPAddrFromAddrPort(ipport)
+		addr = netip.AddrPortFrom(ip, mdata.Port)
+	default:
+		return 0, netip.AddrPort{}, fmt.Errorf("bad metadata type: %v; should be ip", typ)
 	}
 	copy(b, b[sizeMetadata:])
 	n -= sizeMetadata
-	c.remoteAddr = addr
 	return n, addr, nil
 }

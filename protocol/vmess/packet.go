@@ -2,82 +2,58 @@ package vmess
 
 import (
 	"fmt"
-	"net"
-	"strconv"
-
 	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
+	"net"
+	"net/netip"
 )
 
-func (c *Conn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+func (c *Conn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {
 	buf := pool.Get(MaxUDPSize)
 	defer pool.Put(buf)
-	n, err = c.Read(buf)
+	n, err = c.read(buf)
 	if err != nil {
-		return 0, nil, err
+		return 0, netip.AddrPort{}, err
 	}
 
 	if c.metadata.IsPacketAddr() {
 		addrTyp, address, err := ExtractPacketAddr(buf)
 		addrLen := PacketAddrLength(addrTyp)
 		if n < addrLen {
-			return 0, nil, fmt.Errorf("not enough data to read for PacketAddr")
+			return 0, netip.AddrPort{}, fmt.Errorf("not enough data to read for PacketAddr")
 		}
 		copy(p, buf[addrLen:n])
-		return n - addrLen, &address, err
+		return n - addrLen, address, err
 	} else {
-		if c.cachedRAddrIP == nil {
-			c.cachedRAddrIP, err = net.ResolveUDPAddr("udp", net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port))))
+		if !c.dialTgtAddrPort.IsValid() {
+			tgt, err := net.ResolveUDPAddr("udp", c.dialTgt)
 			if err != nil {
-				return 0, nil, err
+				return 0, netip.AddrPort{}, err
 			}
+			c.dialTgtAddrPort = tgt.AddrPort()
 		}
-		addr = c.cachedRAddrIP
 		copy(p, buf[:n])
-		return n, addr, err
+		return n, c.dialTgtAddrPort, err
 	}
 }
 
-func (c *Conn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+func (c *Conn) WriteTo(p []byte, addr string) (n int, err error) {
 	if c.metadata.IsPacketAddr() {
-		address := addr.(*net.UDPAddr)
+		// VMess packet addr does not support domain.
+		address, err := net.ResolveUDPAddr("udp", addr)
+		if err != nil {
+			return 0, err
+		}
 		packetAddrLen := UDPAddrToPacketAddrLength(address)
 		buf := pool.Get(packetAddrLen + len(p))
 		defer pool.Put(buf)
 
-		err := PutPacketAddr(buf, address)
+		err = PutPacketAddr(buf, address)
 		if err != nil {
 			return 0, err
 		}
 		copy(buf[packetAddrLen:], p)
-		return c.Write(buf)
+		return c.write(buf)
 	}
 
-	return c.Write(p)
-}
-
-func (c *Conn) LocalAddr() net.Addr {
-	switch c.metadata.Network {
-	case "udp":
-		if c.Conn.LocalAddr() != nil {
-			return protocol.TCPAddrToUDPAddr(c.Conn.LocalAddr().(*net.TCPAddr))
-		} else {
-			return nil
-		}
-	default:
-		return c.Conn.LocalAddr()
-	}
-}
-
-func (c *Conn) RemoteAddr() net.Addr {
-	switch c.metadata.Network {
-	case "udp":
-		if c.Conn.RemoteAddr() != nil {
-			return protocol.TCPAddrToUDPAddr(c.Conn.RemoteAddr().(*net.TCPAddr))
-		} else {
-			return nil
-		}
-	default:
-		return c.Conn.RemoteAddr()
-	}
+	return c.write(p)
 }

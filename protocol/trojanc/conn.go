@@ -8,9 +8,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
 	"io"
-	"net"
 	"sync"
 	"time"
 )
@@ -21,7 +21,7 @@ var (
 )
 
 type Conn struct {
-	net.Conn
+	netproxy.Conn
 	metadata Metadata
 	pass     [56]byte
 
@@ -30,7 +30,7 @@ type Conn struct {
 	onceRead   sync.Once
 }
 
-func NewConn(conn net.Conn, metadata Metadata, password string) (c *Conn, err error) {
+func NewConn(conn netproxy.Conn, metadata Metadata, password string) (c *Conn, err error) {
 	hash := sha256.New224()
 	hash.Write([]byte(password))
 	c = &Conn{

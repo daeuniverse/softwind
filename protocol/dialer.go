@@ -2,11 +2,11 @@ package protocol
 
 import (
 	"fmt"
-	"golang.org/x/net/proxy"
+	"github.com/mzz2017/softwind/netproxy"
 	"strconv"
 )
 
-type Creator func(nextDialer proxy.Dialer, header Header) (proxy.Dialer, error)
+type Creator func(nextDialer netproxy.Dialer, header Header) (netproxy.Dialer, error)
 
 var Mapper = make(map[string]Creator)
 
@@ -14,7 +14,7 @@ func Register(name string, c Creator) {
 	Mapper[name] = c
 }
 
-func NewDialer(name string, nextDialer proxy.Dialer, header Header) (proxy.Dialer, error) {
+func NewDialer(name string, nextDialer netproxy.Dialer, header Header) (netproxy.Dialer, error) {
 	creator, ok := Mapper[name]
 	if !ok {
 		return nil, fmt.Errorf("no conn creator registered for %v", strconv.Quote(name))

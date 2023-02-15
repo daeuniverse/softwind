@@ -7,11 +7,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/vmess"
 	"io"
 	"net"
+	"net/netip"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -21,17 +24,18 @@ var (
 )
 
 type Conn struct {
-	net.Conn
-	metadata      vmess.Metadata
-	cmdKey        []byte
-	cachedRAddrIP *net.UDPAddr
+	netproxy.Conn
+	metadata            vmess.Metadata
+	cmdKey              []byte
+	cachedProxyAddrIpIP netip.AddrPort
 
 	writeMutex sync.Mutex
 	onceWrite  bool
 	onceRead   sync.Once
 }
 
-func NewConn(conn net.Conn, metadata vmess.Metadata, cmdKey []byte) (c *Conn, err error) {
+func NewConn(conn netproxy.Conn, metadata vmess.Metadata, cmdKey []byte) (c *Conn, err error) {
+
 	// DO NOT use pool here because Close() cannot interrupt the reading or writing, which will modify the value of the pool buffer.
 	key := make([]byte, len(cmdKey))
 	copy(key, cmdKey)
@@ -39,6 +43,13 @@ func NewConn(conn net.Conn, metadata vmess.Metadata, cmdKey []byte) (c *Conn, er
 		Conn:     conn,
 		metadata: metadata,
 		cmdKey:   key,
+	}
+	if metadata.Network == "udp" {
+		proxyAddrIp, err := net.ResolveUDPAddr("udp", net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port))))
+		if err != nil {
+			return nil, err
+		}
+		c.cachedProxyAddrIpIP = proxyAddrIp.AddrPort()
 	}
 	if metadata.IsClient {
 		time.AfterFunc(100*time.Millisecond, func() {

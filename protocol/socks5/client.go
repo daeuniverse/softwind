@@ -5,6 +5,7 @@ package socks5
 import (
 	"errors"
 	"fmt"
+	"github.com/mzz2017/softwind/netproxy"
 	"io"
 	"net"
 	"net/netip"
@@ -13,71 +14,66 @@ import (
 
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol/infra/socks"
-	"golang.org/x/net/proxy"
 )
 
-// NewSocks5Dialer returns a socks5 proxy dialer.
-func NewSocks5Dialer(s string, d proxy.Dialer) (proxy.Dialer, error) {
+// NewSocks5Dialer returns a socks5 proxy netproxy.
+func NewSocks5Dialer(s string, d netproxy.Dialer) (netproxy.Dialer, error) {
 	return NewSocks5(s, d)
 }
 
-// Dial connects to the address addr on the network net via the SOCKS5 proxy.
-func (s *Socks5) Dial(network, addr string) (net.Conn, error) {
-	c, err := s.dialer.Dial("tcp", s.addr)
+func (s *Socks5) DialTcp(addr string) (netproxy.Conn, error) {
+	c, err := s.dialer.DialTcp(s.addr)
+	if err != nil {
+		return nil, fmt.Errorf("[socks5]: dial to %s error: %w", s.addr, err)
+	}
+	if _, err := s.connect(c, addr, socks.CmdConnect); err != nil {
+		c.Close()
+		return nil, err
+	}
+	return c, nil
+}
+
+func (s *Socks5) DialUdp(addr string) (netproxy.PacketConn, error) {
+	c, err := s.dialer.DialTcp(s.addr)
 	if err != nil {
 		return nil, fmt.Errorf("[socks5]: dial to %s error: %w", s.addr, err)
 	}
 
-	switch {
-	case strings.HasPrefix(network, "tcp"):
-		if _, err := s.connect(c, addr, socks.CmdConnect); err != nil {
-			c.Close()
-			return nil, err
-		}
-		return c, nil
-	case strings.HasPrefix(network, "udp"):
-		var uAddr socks.Addr
-		if uAddr, err = s.connect(c, addr, socks.CmdUDPAssociate); err != nil {
-			c.Close()
-			return nil, err
-		}
-
-		buf := pool.Get(socks.MaxAddrLen)
-		defer pool.Put(buf)
-
-		uAddress := uAddr.String()
-		h, p, _ := net.SplitHostPort(uAddress)
-		// if returned bind ip is unspecified
-		if ip, err := netip.ParseAddr(h); err == nil && ip.IsUnspecified() {
-			// indicate using conventional addr
-			h, _, _ = net.SplitHostPort(s.addr)
-			uAddress = net.JoinHostPort(h, p)
-		}
-
-		conn, err := s.dialer.Dial(network, uAddress)
-		if err != nil {
-			return nil, fmt.Errorf("[socks5] dialudp to %s error: %w", uAddress, err)
-		}
-		pc, ok := conn.(net.PacketConn)
-		if !ok {
-			return nil, fmt.Errorf("[socks5] forwarder is not net.PacketConn")
-		}
-
-		writeTo, err := net.ResolveUDPAddr("udp", uAddress)
-		if err != nil {
-			return nil, fmt.Errorf("[socks5] resolve addr error: %w", err)
-		}
-
-		return NewPktConn(pc, writeTo, socks.ParseAddr(addr), c), nil
-	default:
-		return nil, fmt.Errorf("unexpected forwarder conn type")
+	// Get the proxy addr we should dial.
+	var uAddr socks.Addr
+	if uAddr, err = s.connect(c, addr, socks.CmdUDPAssociate); err != nil {
+		c.Close()
+		return nil, err
 	}
+
+	buf := pool.Get(socks.MaxAddrLen)
+	defer pool.Put(buf)
+
+	uAddress := uAddr.String()
+	h, p, _ := net.SplitHostPort(uAddress)
+	// if returned bind ip is unspecified
+	if ip, err := netip.ParseAddr(h); err == nil && ip.IsUnspecified() {
+		// indicate using conventional addr
+		h, _, _ = net.SplitHostPort(s.addr)
+		uAddress = net.JoinHostPort(h, p)
+	}
+
+	conn, err := s.dialer.DialUdp(uAddress)
+	if err != nil {
+		return nil, fmt.Errorf("[socks5] dialudp to %s error: %w", uAddress, err)
+	}
+	pc, ok := conn.(netproxy.PacketConn)
+	if !ok {
+		return nil, fmt.Errorf("[socks5] forwarder is not transport.PacketConn")
+	}
+
+	return NewPktConn(pc, uAddress, addr, c), nil
 }
 
 // connect takes an existing connection to a socks5 proxy server,
 // and commands the server to extend that connection to target,
 // which must be a canonical address with a host and port.
-func (s *Socks5) connect(conn net.Conn, target string, cmd byte) (addr socks.Addr, err error) {
+func (s *Socks5) connect(conn netproxy.Conn, target string, cmd byte) (addr socks.Addr, err error) {
 	// the size here is just an estimate
 	buf := pool.Get(socks.MaxAddrLen)
 	defer pool.Put(buf)

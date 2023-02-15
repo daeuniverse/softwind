@@ -5,44 +5,43 @@ import (
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"io"
-	"net"
-	"strconv"
+	"net/netip"
 )
 
-func (c *Conn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+func (c *Conn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {
 	buf := pool.Get(1)
 	defer pool.Put(buf)
 	if _, err = io.ReadFull(c, buf); err != nil {
-		return 0, nil, err
+		return 0, netip.AddrPort{}, err
 	}
 	m := Metadata{Metadata: protocol.Metadata{Type: ParseMetadataType(buf[0])}}
 	buf = pool.Get(m.Len())
 	buf[0] = MetadataTypeToByte(m.Type)
 	defer pool.Put(buf)
 	if _, err = io.ReadFull(c, buf[1:]); err != nil {
-		return 0, nil, err
+		return 0, netip.AddrPort{}, err
 	}
 	m.Unpack(buf)
 
-	// TODO: should we check the address type?
-	if addr, err = net.ResolveUDPAddr("udp", net.JoinHostPort(m.Hostname, strconv.Itoa(int(m.Port)))); err != nil {
-		return 0, nil, err
+	if addr, err = m.AddrPort(); err != nil {
+		return 0, netip.AddrPort{}, err
 	}
+
 	if _, err = io.ReadFull(c, buf[:2]); err != nil {
-		return 0, nil, err
+		return 0, netip.AddrPort{}, err
 	}
 	length := binary.BigEndian.Uint16(buf)
 	buf = pool.Get(2 + int(length))
 	defer pool.Put(buf)
 	if _, err = io.ReadFull(c, buf); err != nil {
-		return 0, nil, err
+		return 0, netip.AddrPort{}, err
 	}
 	copy(p, buf[2:])
 	return int(length), addr, nil
 }
 
-func (c *Conn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	_metadata, err := protocol.ParseMetadata(addr.String())
+func (c *Conn) WriteTo(p []byte, addr string) (n int, err error) {
+	_metadata, err := protocol.ParseMetadata(addr)
 	if err != nil {
 		return 0, err
 	}
@@ -68,22 +67,4 @@ func SealUDP(metadata Metadata, dst []byte, data []byte) []byte {
 	binary.BigEndian.PutUint16(dst[n:], uint16(len(data)))
 	copy(dst[n+2:], CRLF)
 	return dst[:n+4+len(data)]
-}
-
-func (c *Conn) LocalAddr() net.Addr {
-	switch c.metadata.Network {
-	case "udp":
-		return protocol.TCPAddrToUDPAddr(c.Conn.LocalAddr().(*net.TCPAddr))
-	default:
-		return c.Conn.LocalAddr()
-	}
-}
-
-func (c *Conn) RemoteAddr() net.Addr {
-	switch c.metadata.Network {
-	case "udp":
-		return protocol.TCPAddrToUDPAddr(c.Conn.RemoteAddr().(*net.TCPAddr))
-	default:
-		return c.Conn.RemoteAddr()
-	}
 }

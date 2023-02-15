@@ -3,10 +3,10 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pkg/cert"
 	proto "github.com/mzz2017/softwind/pkg/gun_proto"
 	"github.com/mzz2017/softwind/pool"
-	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
@@ -24,8 +24,7 @@ import (
 
 // https://github.com/v2fly/v2ray-core/blob/v5.0.6/transport/internet/grpc/dial.go
 type clientConnMeta struct {
-	cc         *grpc.ClientConn
-	addrTagger *addrTagger
+	cc *grpc.ClientConn
 }
 
 var (
@@ -51,18 +50,15 @@ type ClientConn struct {
 	readClosed    chan struct{}
 	writeClosed   chan struct{}
 	closed        chan struct{}
-
-	addrTagger *addrTagger
 }
 
-func NewClientConn(tun proto.GunService_TunClient, addrTagger *addrTagger, closer context.CancelFunc) *ClientConn {
+func NewClientConn(tun proto.GunService_TunClient, closer context.CancelFunc) *ClientConn {
 	return &ClientConn{
 		tun:         tun,
 		closer:      closer,
 		readClosed:  make(chan struct{}),
 		writeClosed: make(chan struct{}),
 		closed:      make(chan struct{}),
-		addrTagger:  addrTagger,
 	}
 }
 
@@ -170,14 +166,6 @@ func (c *ClientConn) Close() error {
 }
 func (c *ClientConn) CloseWrite() error {
 	return c.tun.CloseSend()
-}
-
-// FIXME: LocalAddr is not RELIABLE.
-func (c *ClientConn) LocalAddr() net.Addr {
-	return c.addrTagger.ConnTagInfo.LocalAddr
-}
-func (c *ClientConn) RemoteAddr() net.Addr {
-	return c.addrTagger.ConnTagInfo.RemoteAddr
 }
 
 func (c *ClientConn) SetDeadline(t time.Time) error {
@@ -301,17 +289,21 @@ func (c *ClientConn) SetWriteDeadline(t time.Time) error {
 }
 
 type Dialer struct {
-	NextDialer    proxy.ContextDialer
+	NextDialer    *netproxy.ContextDialer
 	ServiceName   string
 	ServerName    string
 	AllowInsecure bool
 }
 
-func (d *Dialer) Dial(network string, address string) (net.Conn, error) {
-	return d.DialContext(context.Background(), network, address)
+func (d *Dialer) DialTcp(address string) (netproxy.Conn, error) {
+	return d.DialContext(context.Background(), "tcp", address)
 }
 
-func (d *Dialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
+func (d *Dialer) DialUdp(address string) (netproxy.PacketConn, error) {
+	return nil, netproxy.UnsupportedTunnelTypeError
+}
+
+func (d *Dialer) DialContext(ctx context.Context, network string, address string) (netproxy.Conn, error) {
 	meta, cancel, err := getGrpcClientConn(ctx, d.NextDialer, d.ServerName, address, d.AllowInsecure)
 	if err != nil {
 		cancel()
@@ -331,10 +323,10 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 		streamCloser()
 		return nil, err
 	}
-	return NewClientConn(tun, meta.addrTagger, streamCloser), nil
+	return NewClientConn(tun, streamCloser), nil
 }
 
-func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverName string, address string, allowInsecure bool) (*clientConnMeta, ccCanceller, error) {
+func getGrpcClientConn(ctx context.Context, tcpDialer *netproxy.ContextDialer, serverName string, address string, allowInsecure bool) (*clientConnMeta, ccCanceller, error) {
 	// allowInsecure?
 	var certOption grpc.DialOption
 	if allowInsecure {
@@ -368,14 +360,21 @@ func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverNa
 	}
 	globalCCAccess.Unlock()
 	meta := &clientConnMeta{
-		cc:         nil,
-		addrTagger: &addrTagger{},
+		cc: nil,
 	}
 	var err error
 	meta.cc, err = grpc.DialContext(ctx, address,
 		certOption,
 		grpc.WithContextDialer(func(ctxGrpc context.Context, s string) (net.Conn, error) {
-			return dialer.DialContext(ctxGrpc, "tcp", s)
+			c, err := tcpDialer.DialTcpContext(ctxGrpc, s)
+			if err != nil {
+				return nil, err
+			}
+			return &netproxy.FakeNetConn{
+				Conn:  c,
+				LAddr: nil,
+				RAddr: nil,
+			}, nil
 		}), grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  500 * time.Millisecond,
@@ -388,7 +387,7 @@ func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverNa
 			Time:                30 * time.Second,
 			Timeout:             10 * time.Second,
 			PermitWithoutStream: true,
-		}), grpc.WithStatsHandler(meta.addrTagger),
+		}),
 	)
 	if err != nil {
 		return nil, canceller, err

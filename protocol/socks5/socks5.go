@@ -13,9 +13,8 @@
 package socks5
 
 import (
+	"github.com/mzz2017/softwind/netproxy"
 	"net/url"
-
-	"golang.org/x/net/proxy"
 )
 
 // Version is socks5 version number.
@@ -23,7 +22,7 @@ const Version = 5
 
 // Socks5 is a base socks5 struct.
 type Socks5 struct {
-	dialer   proxy.Dialer
+	dialer   netproxy.Dialer
 	addr     string
 	user     string
 	password string
@@ -31,7 +30,7 @@ type Socks5 struct {
 
 // NewSocks5 returns a Proxy that makes SOCKS v5 connections to the given address.
 // with an optional username and password. (RFC 1928)
-func NewSocks5(s string, d proxy.Dialer) (*Socks5, error) {
+func NewSocks5(s string, d netproxy.Dialer) (*Socks5, error) {
 	u, err := url.Parse(s)
 	if err != nil {
 		return nil, err

@@ -4,7 +4,9 @@ package socks5
 
 import (
 	"errors"
+	"github.com/mzz2017/softwind/netproxy"
 	"net"
+	"net/netip"
 
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol/infra/socks"
@@ -12,18 +14,18 @@ import (
 
 // PktConn .
 type PktConn struct {
-	net.PacketConn
-	ctrlConn net.Conn // tcp control conn
-	writeTo  net.Addr // write to and read from addr
-	target   socks.Addr
+	netproxy.PacketConn
+	ctrlConn  netproxy.Conn // tcp control conn
+	target    string
+	proxyAddr string
 }
 
 // NewPktConn returns a PktConn, the writeAddr must be *net.UDPAddr or *net.UnixAddr.
-func NewPktConn(c net.PacketConn, writeAddr net.Addr, targetAddr socks.Addr, ctrlConn net.Conn) *PktConn {
+func NewPktConn(c netproxy.PacketConn, proxyAddr string, targetAddr string, ctrlConn netproxy.Conn) *PktConn {
 	pc := &PktConn{
 		PacketConn: c,
-		writeTo:    writeAddr,
 		target:     targetAddr,
+		proxyAddr:  proxyAddr,
 		ctrlConn:   ctrlConn,
 	}
 
@@ -45,23 +47,23 @@ func NewPktConn(c net.PacketConn, writeAddr net.Addr, targetAddr socks.Addr, ctr
 	return pc
 }
 
-// ReadFrom overrides the original function from net.PacketConn.
-func (pc *PktConn) ReadFrom(b []byte) (int, net.Addr, error) {
+// ReadFrom overrides the original function from transport.PacketConn.
+func (pc *PktConn) ReadFrom(b []byte) (int, netip.AddrPort, error) {
 	n, _, target, err := pc.readFrom(b)
 	return n, target, err
 }
 
-func (pc *PktConn) readFrom(b []byte) (int, net.Addr, net.Addr, error) {
+func (pc *PktConn) readFrom(b []byte) (int, netip.AddrPort, netip.AddrPort, error) {
 	buf := pool.Get(len(b))
 	defer pool.Put(buf)
 
 	n, raddr, err := pc.PacketConn.ReadFrom(buf)
 	if err != nil {
-		return n, raddr, nil, err
+		return n, raddr, netip.AddrPort{}, err
 	}
 
 	if n < 3 {
-		return n, raddr, nil, errors.New("not enough size to get addr")
+		return n, raddr, netip.AddrPort{}, errors.New("not enough size to get addr")
 	}
 
 	// https://www.rfc-editor.org/rfc/rfc1928#section-7
@@ -72,33 +74,21 @@ func (pc *PktConn) readFrom(b []byte) (int, net.Addr, net.Addr, error) {
 	// +----+------+------+----------+----------+----------+
 	tgtAddr := socks.SplitAddr(buf[3:n])
 	if tgtAddr == nil {
-		return n, raddr, nil, errors.New("can not get target addr")
+		return n, raddr, netip.AddrPort{}, errors.New("can not get target addr")
 	}
 
 	target, err := net.ResolveUDPAddr("udp", tgtAddr.String())
 	if err != nil {
-		return n, raddr, nil, errors.New("wrong target addr")
-	}
-
-	if pc.writeTo == nil {
-		pc.writeTo = raddr
-	}
-
-	if pc.target == nil {
-		pc.target = make([]byte, len(tgtAddr))
-		copy(pc.target, tgtAddr)
+		return n, raddr, netip.AddrPort{}, errors.New("wrong target addr")
 	}
 
 	n = copy(b, buf[3+len(tgtAddr):n])
-	return n, raddr, target, err
+	return n, raddr, target.AddrPort(), err
 }
 
-// WriteTo overrides the original function from net.PacketConn.
-func (pc *PktConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	target := pc.target
-	if addr != nil {
-		target = socks.ParseAddr(addr.String())
-	}
+// WriteTo overrides the original function from transport.PacketConn.
+func (pc *PktConn) WriteTo(b []byte, addr string) (int, error) {
+	target := socks.ParseAddr(addr)
 
 	if target == nil {
 		return 0, errors.New("invalid addr")
@@ -112,7 +102,7 @@ func (pc *PktConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	copy(buf[3:], target)
 	copy(buf[3+tgtLen:], b)
 
-	n, err := pc.PacketConn.WriteTo(buf, pc.writeTo)
+	n, err := pc.PacketConn.WriteTo(buf, pc.proxyAddr)
 	if n > tgtLen+3 {
 		return n - tgtLen - 3, err
 	}
@@ -136,8 +126,4 @@ func (c *PktConn) Read(b []byte) (n int, err error) {
 
 func (c *PktConn) Write(b []byte) (n int, err error) {
 	return c.WriteTo(b, c.target)
-}
-
-func (c *PktConn) RemoteAddr() net.Addr {
-	return c.writeTo
 }
