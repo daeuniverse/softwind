@@ -4,6 +4,7 @@ package socks
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
@@ -136,11 +137,11 @@ func SplitAddr(b []byte) Addr {
 }
 
 // ParseAddr parses the address in string s. Returns nil if failed.
-func ParseAddr(s string) Addr {
+func ParseAddr(s string) (Addr, error) {
 	var addr Addr
 	host, port, err := net.SplitHostPort(s)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	if ip, err := netip.ParseAddr(host); err == nil {
@@ -154,7 +155,7 @@ func ParseAddr(s string) Addr {
 		copy(addr[1:], ip.AsSlice())
 	} else {
 		if len(host) > 255 {
-			return nil
+			return nil, fmt.Errorf("address %v is too long", s)
 		}
 		addr = make([]byte, 1+1+len(host)+2)
 		addr[0] = ATypDomain
@@ -164,10 +165,10 @@ func ParseAddr(s string) Addr {
 
 	portnum, err := strconv.ParseUint(port, 10, 16)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	addr[len(addr)-2], addr[len(addr)-1] = byte(portnum>>8), byte(portnum)
 
-	return addr
+	return addr, nil
 }

@@ -4,6 +4,7 @@ package socks5
 
 import (
 	"errors"
+	"fmt"
 	"github.com/mzz2017/softwind/netproxy"
 	"net"
 	"net/netip"
@@ -88,10 +89,10 @@ func (pc *PktConn) readFrom(b []byte) (int, netip.AddrPort, netip.AddrPort, erro
 
 // WriteTo overrides the original function from transport.PacketConn.
 func (pc *PktConn) WriteTo(b []byte, addr string) (int, error) {
-	target := socks.ParseAddr(addr)
+	target, err := socks.ParseAddr(addr)
 
-	if target == nil {
-		return 0, errors.New("invalid addr")
+	if err != nil {
+		return 0, fmt.Errorf("invalid addr: %w", err)
 	}
 
 	tgtLen := len(target)

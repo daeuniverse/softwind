@@ -4,9 +4,9 @@ import (
 	"crypto/cipher"
 	"crypto/sha1"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	disk_bloom "github.com/mzz2017/disk-bloom"
+	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/common"
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
@@ -31,18 +31,19 @@ var (
 type TCPConn struct {
 	netproxy.Conn
 	metadata   protocol.Metadata
-	cipherConf CipherConf
+	cipherConf *ciphers.CipherConf
 	masterKey  []byte
 
 	cipherRead  cipher.AEAD
 	cipherWrite cipher.AEAD
-	onceRead    sync.Once
+	onceRead    bool
 	onceWrite   bool
-	writeMutex  sync.Mutex
 	nonceRead   []byte
 	nonceWrite  []byte
 
-	readMutex   sync.Mutex
+	readMutex  sync.Mutex
+	writeMutex sync.Mutex
+
 	leftToRead  []byte
 	indexToRead int
 
@@ -51,7 +52,7 @@ type TCPConn struct {
 }
 
 type Key struct {
-	CipherConf CipherConf
+	CipherConf *ciphers.CipherConf
 	MasterKey  []byte
 }
 
@@ -64,7 +65,7 @@ func EncryptedPayloadLen(plainTextLen int, tagLen int) int {
 }
 
 func NewTCPConn(conn netproxy.Conn, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (crw *TCPConn, err error) {
-	conf := CiphersConf[metadata.Cipher]
+	conf := ciphers.AeadCiphersConf[metadata.Cipher]
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
 	}
@@ -115,7 +116,7 @@ func (c *TCPConn) Close() error {
 func (c *TCPConn) Read(b []byte) (n int, err error) {
 	c.readMutex.Lock()
 	defer c.readMutex.Unlock()
-	c.onceRead.Do(func() {
+	if !c.onceRead {
 		var salt = pool.Get(c.cipherConf.SaltLen)
 		defer pool.Put(salt)
 		n, err = io.ReadFull(c.Conn, salt)
@@ -135,19 +136,17 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 			sha1.New,
 			c.masterKey,
 			salt,
-			ReusedInfo,
+			ciphers.ReusedInfo,
 		)
 		_, err = io.ReadFull(kdf, subKey)
 		if err != nil {
 			return
 		}
 		c.cipherRead, err = c.cipherConf.NewCipher(subKey)
-	})
-	if c.cipherRead == nil {
-		if errors.Is(err, protocol.ErrReplayAttack) {
+		if err != nil {
 			return 0, fmt.Errorf("%v: %w", ErrFailInitCipher, err)
 		}
-		return 0, fmt.Errorf("%v: %w", ErrFailInitCipher, err)
+		c.onceRead = true
 	}
 	if c.indexToRead < len(c.leftToRead) {
 		n = copy(b, c.leftToRead[c.indexToRead:])
@@ -234,7 +233,7 @@ func (c *TCPConn) initWriteFromPool(b []byte) (buf []byte, offset int, toWrite [
 		sha1.New,
 		c.masterKey,
 		buf[:c.cipherConf.SaltLen],
-		ReusedInfo,
+		ciphers.ReusedInfo,
 	)
 	_, err = io.ReadFull(kdf, subKey)
 	if err != nil {

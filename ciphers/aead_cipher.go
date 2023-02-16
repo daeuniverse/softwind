@@ -1,0 +1,73 @@
+package ciphers
+
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha1"
+	"github.com/mzz2017/softwind/pool"
+	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/crypto/hkdf"
+	"io"
+)
+
+type CipherConf struct {
+	KeyLen    int
+	SaltLen   int
+	NonceLen  int
+	TagLen    int
+	NewCipher func(key []byte) (cipher.AEAD, error)
+}
+
+const (
+	MaxNonceSize = 12
+	ATypeIPv4    = 1
+	ATypeDomain  = 3
+	ATypeIpv6    = 4
+)
+
+var (
+	AeadCiphersConf = map[string]*CipherConf{
+		"chacha20-ietf-poly1305": {KeyLen: 32, SaltLen: 32, NonceLen: 12, TagLen: 16, NewCipher: chacha20poly1305.New},
+		"chacha20-poly1305":      {KeyLen: 32, SaltLen: 32, NonceLen: 12, TagLen: 16, NewCipher: chacha20poly1305.New},
+		"aes-256-gcm":            {KeyLen: 32, SaltLen: 32, NonceLen: 12, TagLen: 16, NewCipher: NewGcm},
+		"aes-128-gcm":            {KeyLen: 16, SaltLen: 16, NonceLen: 12, TagLen: 16, NewCipher: NewGcm},
+	}
+	ZeroNonce  [MaxNonceSize]byte
+	ReusedInfo = []byte("ss-subkey")
+)
+
+func NewGcm(key []byte) (cipher.AEAD, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(block)
+}
+
+func (conf *CipherConf) Verify(buf []byte, masterKey []byte, salt []byte, cipherText []byte, subKey *[]byte) ([]byte, bool) {
+	var sk []byte
+	if subKey != nil && len(*subKey) == conf.KeyLen {
+		sk = *subKey
+	} else {
+		sk = pool.Get(conf.KeyLen)
+		defer pool.Put(sk)
+		kdf := hkdf.New(
+			sha1.New,
+			masterKey,
+			salt,
+			ReusedInfo,
+		)
+		io.ReadFull(kdf, sk)
+		if subKey != nil && cap(*subKey) >= conf.KeyLen {
+			*subKey = (*subKey)[:conf.KeyLen]
+			copy(*subKey, sk)
+		}
+	}
+
+	ciph, _ := conf.NewCipher(sk)
+
+	if _, err := ciph.Open(buf[:0], ZeroNonce[:conf.NonceLen], cipherText, nil); err != nil {
+		return nil, false
+	}
+	return buf[:len(cipherText)-ciph.Overhead()], true
+}

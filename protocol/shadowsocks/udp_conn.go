@@ -3,6 +3,7 @@ package shadowsocks
 import (
 	"fmt"
 	disk_bloom "github.com/mzz2017/disk-bloom"
+	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
@@ -17,7 +18,7 @@ type UdpConn struct {
 	proxyAddress string
 
 	metadata   protocol.Metadata
-	cipherConf CipherConf
+	cipherConf *ciphers.CipherConf
 	masterKey  []byte
 	bloom      *disk_bloom.FilterGroup
 	sg         SaltGenerator
@@ -26,7 +27,7 @@ type UdpConn struct {
 }
 
 func NewUdpConn(conn netproxy.PacketConn, proxyAddress string, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (*UdpConn, error) {
-	conf := CiphersConf[metadata.Cipher]
+	conf := ciphers.AeadCiphersConf[metadata.Cipher]
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
 	}

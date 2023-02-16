@@ -122,7 +122,11 @@ func (s *Socks5) connect(conn netproxy.Conn, target string, cmd byte) (addr sock
 
 	buf = buf[:0]
 	buf = append(buf, Version, cmd, 0 /* reserved */)
-	buf = append(buf, socks.ParseAddr(target)...)
+	tgtAddr, err := socks.ParseAddr(target)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, tgtAddr...)
 
 	if _, err := conn.Write(buf); err != nil {
 		return addr, errors.New("proxy: failed to write connect request to SOCKS5 proxy at " + s.addr + ": " + err.Error())

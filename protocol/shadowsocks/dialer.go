@@ -1,6 +1,8 @@
 package shadowsocks
 
 import (
+	"github.com/mzz2017/softwind/ciphers"
+	"github.com/mzz2017/softwind/common"
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/protocol"
 )
@@ -25,7 +27,7 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 			Cipher:   header.Cipher,
 			IsClient: header.IsClient,
 		},
-		key: EVPBytesToKey(header.Password, CiphersConf[header.Cipher].KeyLen),
+		key: common.EVPBytesToKey(header.Password, ciphers.AeadCiphersConf[header.Cipher].KeyLen),
 	}, nil
 }
 
