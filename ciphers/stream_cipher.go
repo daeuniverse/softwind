@@ -249,6 +249,9 @@ func (c *StreamCipher) DecryptInited() bool {
 
 // InitEncrypt initializes the block cipher with CFB mode, returns IV.
 func (c *StreamCipher) InitEncrypt() (iv []byte, err error) {
+	if c.EncryptInited() {
+		return c.iv, nil
+	}
 	if c.iv == nil {
 		iv = make([]byte, c.info.ivLen)
 		rand.Read(iv)

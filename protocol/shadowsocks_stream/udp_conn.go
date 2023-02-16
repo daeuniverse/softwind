@@ -45,6 +45,7 @@ func (c *UdpConn) ReadFrom(b []byte) (n int, from netip.AddrPort, err error) {
 func (c *UdpConn) writeTo(p []byte, addr socks.Addr) (n int, err error) {
 	infoIvLen := c.cipher.InfoIVLen()
 	buf := pool.Get(infoIvLen + len(addr) + len(p))
+	defer pool.Put(buf)
 	enc, err := c.cipher.NewEncryptor(buf)
 	if err != nil {
 		return 0, err

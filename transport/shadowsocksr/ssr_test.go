@@ -16,9 +16,9 @@ import (
 func TestSSR(t *testing.T) {
 	d := direct.SymmetricDirect
 	obfsDialer, err := obfs.NewDialer(d, &obfs.ObfsParam{
-		ObfsHost:  "www.cloudflare.com",
+		ObfsHost:  "",
 		ObfsPort:  0,
-		Obfs:      "tls1.2_ticket_auth",
+		Obfs:      "plain",
 		ObfsParam: "",
 	})
 	if err != nil {
@@ -55,7 +55,7 @@ func TestSSR(t *testing.T) {
 			}, nil
 		}},
 	}
-	resp, err := c.Get("https://www.baidu.com")
+	resp, err := c.Get("https://www.7k7k.com")
 	if err != nil {
 		t.Fatal(err)
 	}

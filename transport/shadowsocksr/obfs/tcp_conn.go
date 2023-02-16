@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
 	"io"
 )
 
 type Conn struct {
 	netproxy.Conn
 	Obfs                IObfs
-	underPostdecryptBuf *buffer.Buffer
+	underPostdecryptBuf *bytes.Buffer
 	readLater           io.Reader
 
 	init    bool
@@ -24,7 +23,7 @@ func NewConn(c netproxy.Conn, obfs IObfs) (*Conn, error) {
 	return &Conn{
 		Conn:                c,
 		Obfs:                obfs,
-		underPostdecryptBuf: new(buffer.Buffer),
+		underPostdecryptBuf: new(bytes.Buffer),
 		addrLen:             30,
 	}, nil
 }

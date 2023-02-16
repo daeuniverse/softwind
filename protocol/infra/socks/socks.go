@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/netip"
 	"strconv"
 )
 
@@ -144,15 +143,16 @@ func ParseAddr(s string) (Addr, error) {
 		return nil, err
 	}
 
-	if ip, err := netip.ParseAddr(host); err == nil {
-		if ip.Is4() {
+	if ip := net.ParseIP(host); ip != nil {
+		if ip4 := ip.To4(); ip4 != nil {
 			addr = make([]byte, 1+net.IPv4len+2)
 			addr[0] = ATypIP4
+			copy(addr[1:], ip4)
 		} else {
 			addr = make([]byte, 1+net.IPv6len+2)
 			addr[0] = ATypIP6
+			copy(addr[1:], ip.To16())
 		}
-		copy(addr[1:], ip.AsSlice())
 	} else {
 		if len(host) > 255 {
 			return nil, fmt.Errorf("address %v is too long", s)

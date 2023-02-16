@@ -1,11 +1,11 @@
 package shadowsocks_stream
 
 import (
-	"errors"
 	"fmt"
 	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
+	"io"
 )
 
 // TcpConn the struct that override the netproxy.Conn methods
@@ -24,15 +24,18 @@ func NewTcpConn(c netproxy.Conn, cipher *ciphers.StreamCipher) *TcpConn {
 }
 
 func (c *TcpConn) Read(b []byte) (n int, err error) {
-	n, err = c.Conn.Read(b)
-	if err != nil {
-		return n, err
-	}
 	if !c.cipher.DecryptInited() {
-		if n < c.cipher.InfoIVLen() {
-			return 0, errors.New(fmt.Sprintf("invalid ivLen:%v, actual length:%v", c.cipher.InfoIVLen(), n))
+		buf := b
+		if len(buf) < c.cipher.InfoIVLen() {
+			buf = pool.Get(c.cipher.InfoIVLen() + len(b))
+			defer pool.Put(buf)
 		}
-		iv := b[:c.cipher.InfoIVLen()]
+		n, err = io.ReadAtLeast(c.Conn, buf, c.cipher.InfoIVLen())
+		if err != nil {
+			return 0, fmt.Errorf("invalid ivLen:%v, actual length:%v: %w", c.cipher.InfoIVLen(), n, err)
+		}
+		//log.Println("n1", n)
+		iv := buf[:c.cipher.InfoIVLen()]
 		if err = c.cipher.InitDecrypt(iv); err != nil {
 			return 0, err
 		}
@@ -40,13 +43,19 @@ func (c *TcpConn) Read(b []byte) (n int, err error) {
 		if c.cipher.IV() == nil {
 			c.cipher.SetIV(iv)
 		}
-		infoIVLen := c.cipher.InfoIVLen()
 		if n == c.cipher.InfoIVLen() {
+			//log.Println("here")
 			return 0, nil
 		}
-		c.cipher.Decrypt(b[infoIVLen:n], b[infoIVLen:n])
-		n = copy(b, b[infoIVLen:n])
+		//log.Println("there")
+		n = copy(b, buf[c.cipher.InfoIVLen():n])
+		c.cipher.Decrypt(b[:n], b[:n])
+		//log.Println("n2", n)
 	} else {
+		n, err = c.Conn.Read(b)
+		if err != nil {
+			return n, err
+		}
 		c.cipher.Decrypt(b[:n], b[:n])
 	}
 	return n, nil
@@ -84,10 +93,7 @@ func (c *TcpConn) Write(b []byte) (n int, err error) {
 		}
 	}
 	c.cipher.Encrypt(b[ivLen:], b[ivLen:])
-	if err != nil {
-		return 0, err
-	}
-	n, err = c.Conn.Write(b)
+	_, err = c.Conn.Write(b)
 	if err != nil {
 		return 0, err
 	}
