@@ -6,6 +6,7 @@ import (
 	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/netproxy"
 	"io"
+	"sync"
 )
 
 type Conn struct {
@@ -17,6 +18,9 @@ type Conn struct {
 	init    bool
 	addrLen int
 	cipher  *ciphers.StreamCipher
+
+	readMu  sync.Mutex
+	writeMu sync.Mutex
 }
 
 func NewConn(c netproxy.Conn, obfs IObfs) (*Conn, error) {
@@ -62,6 +66,8 @@ func (c *Conn) SetAddrLen(addrLen int) {
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
 	// Conn Read: obfs->ss->proto
 	if c.readLater != nil {
 		n, _ = c.readLater.Read(b)
@@ -85,6 +91,7 @@ readAgain:
 	}
 	if len(decodedData) == 0 {
 		goto readAgain
+		//return 0, nil
 	}
 	if &b[0] == &decodedData[0] {
 		return len(decodedData), nil
@@ -109,6 +116,8 @@ func (c *Conn) encode(b []byte) (outData []byte, err error) {
 }
 
 func (c *Conn) Write(b []byte) (n int, err error) {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	// Conn Write: obfs<-ss<-proto
 	data, err := c.encode(b)
 	if err != nil {

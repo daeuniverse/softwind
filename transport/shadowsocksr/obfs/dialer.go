@@ -9,7 +9,7 @@ type Dialer struct {
 	NextDialer netproxy.Dialer
 	param      *ObfsParam
 
-	obfs IObfs
+	overhead int
 }
 type ObfsParam struct {
 	ObfsHost  string
@@ -19,26 +19,22 @@ type ObfsParam struct {
 }
 
 func NewDialer(nextDialer netproxy.Dialer, param *ObfsParam) (*Dialer, error) {
+
+	obfs := NewObfs(param.Obfs)
+	if obfs == nil {
+		return nil, errors.New("unsupported protocol type: " + param.Obfs)
+	}
+
 	d := &Dialer{
 		NextDialer: nextDialer,
 		param:      param,
-		obfs:       NewObfs(param.Obfs),
+		overhead:   obfs.GetOverhead(),
 	}
-	if d.obfs == nil {
-		return nil, errors.New("unsupported protocol type: " + d.param.Obfs)
-	}
-	obfsServerInfo := &ServerInfo{
-		Host:  d.param.ObfsHost,
-		Port:  d.param.ObfsPort,
-		Param: d.param.ObfsParam,
-	}
-	d.obfs.SetData(d.obfs.GetData())
-	d.obfs.SetServerInfo(obfsServerInfo)
 	return d, nil
 }
 
 func (d *Dialer) ObfsOverhead() int {
-	return d.obfs.GetOverhead()
+	return d.overhead
 }
 
 func (d *Dialer) DialTcp(address string) (netproxy.Conn, error) {
@@ -46,7 +42,19 @@ func (d *Dialer) DialTcp(address string) (netproxy.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewConn(conn, d.obfs)
+	obfs := NewObfs(d.param.Obfs)
+	if obfs == nil {
+		return nil, errors.New("unsupported protocol type: " + d.param.Obfs)
+	}
+	obfsServerInfo := &ServerInfo{
+		Host:  d.param.ObfsHost,
+		Port:  d.param.ObfsPort,
+		Param: d.param.ObfsParam,
+	}
+	obfs.SetData(obfs.GetData())
+	obfs.SetServerInfo(obfsServerInfo)
+
+	return NewConn(conn, obfs)
 }
 
 func (d *Dialer) DialUdp(address string) (netproxy.PacketConn, error) {

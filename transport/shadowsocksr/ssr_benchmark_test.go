@@ -14,12 +14,13 @@ import (
 )
 
 func BenchmarkSSR(b *testing.B) {
+	b.N = 5000
 	for i := 0; i < b.N; i++ {
 		d := direct.SymmetricDirect
 		obfsDialer, err := obfs.NewDialer(d, &obfs.ObfsParam{
 			ObfsHost:  "",
 			ObfsPort:  0,
-			Obfs:      "plain",
+			Obfs:      "tls1.2_ticket_auth",
 			ObfsParam: "",
 		})
 		if err != nil {

@@ -18,7 +18,6 @@ type Dialer struct {
 
 	EncryptMethod   string
 	EncryptPassword string
-	clientID        string
 }
 
 func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dialer, error) {

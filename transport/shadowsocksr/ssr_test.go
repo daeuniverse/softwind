@@ -14,11 +14,13 @@ import (
 )
 
 func TestSSR(t *testing.T) {
+	// https://github.com/winterssy/SSR-Docker
+	// Remember to set protocol_param to 3000# (max_client)
 	d := direct.SymmetricDirect
 	obfsDialer, err := obfs.NewDialer(d, &obfs.ObfsParam{
 		ObfsHost:  "",
 		ObfsPort:  0,
-		Obfs:      "plain",
+		Obfs:      "tls1.2_ticket_auth",
 		ObfsParam: "",
 	})
 	if err != nil {
