@@ -15,14 +15,14 @@ func init() {
 }
 
 type Dialer struct {
-	protocol        protocol.Protocol
-	proxyAddress    string
-	proxySNI        string
-	grpcServiceName string
-	nextDialer      netproxy.Dialer
-	metadata        protocol.Metadata
-	key             []byte
-	shouldFullCone  bool
+	protocol          protocol.Protocol
+	proxyAddress      string
+	proxySNI          string
+	grpcServiceName   string
+	nextDialer        netproxy.Dialer
+	metadata          protocol.Metadata
+	key               []byte
+	featurePacketAddr bool
 }
 
 func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dialer, error) {
@@ -43,13 +43,13 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 	}
 	//log.Trace("vmess.NewDialer: metadata: %v, password: %v", metadata, password)
 	return &Dialer{
-		proxyAddress:    header.ProxyAddress,
-		proxySNI:        header.SNI,
-		grpcServiceName: header.GrpcServiceName,
-		nextDialer:      nextDialer,
-		metadata:        metadata,
-		key:             NewID(id).CmdKey(),
-		shouldFullCone:  header.ShouldFullCone,
+		proxyAddress:      header.ProxyAddress,
+		proxySNI:          header.SNI,
+		grpcServiceName:   header.GrpcServiceName,
+		nextDialer:        nextDialer,
+		metadata:          metadata,
+		key:               NewID(id).CmdKey(),
+		featurePacketAddr: header.Flags&protocol.Flags_VMess_UsePacketAddr > 0,
 	}, nil
 }
 
@@ -82,7 +82,7 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.FullConn, err err
 		}
 		mdata.Cipher = d.metadata.Cipher
 		mdata.IsClient = d.metadata.IsClient
-		if d.shouldFullCone && network == "udp" {
+		if d.featurePacketAddr && network == "udp" {
 			mdata.Hostname = SeqPacketMagicAddress
 			mdata.Type = protocol.MetadataTypeDomain
 		}
@@ -102,7 +102,7 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.FullConn, err err
 		return NewConn(conn, Metadata{
 			Metadata: mdata,
 			Network:  network,
-		}, addr ,d.key)
+		}, addr, d.key)
 	default:
 		return nil, net.UnknownNetworkError(network)
 	}

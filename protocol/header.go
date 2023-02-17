@@ -7,5 +7,11 @@ type Header struct {
 	Cipher          string
 	Password        string
 	IsClient        bool
-	ShouldFullCone  bool
+	Flags           Flags
 }
+
+type Flags uint64
+
+const (
+	Flags_VMess_UsePacketAddr = 1 << iota
+)

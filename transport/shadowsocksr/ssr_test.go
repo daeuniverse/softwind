@@ -31,11 +31,11 @@ func TestTcp(t *testing.T) {
 	}
 	d = obfsDialer
 	d, err = shadowsocks_stream.NewDialer(d, protocol.Header{
-		ProxyAddress:   "127.0.0.1:8989",
-		Cipher:         "aes-256-cfb",
-		Password:       "p@ssw0rd",
-		IsClient:       true,
-		ShouldFullCone: false,
+		ProxyAddress: "127.0.0.1:8989",
+		Cipher:       "aes-256-cfb",
+		Password:     "p@ssw0rd",
+		IsClient:     true,
+		Flags:        0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -75,11 +75,11 @@ func TestUdp(t *testing.T) {
 	// Remember to set protocol_param to 3000# (max_client)
 	d := direct.SymmetricDirect
 	d, err := shadowsocks_stream.NewDialer(d, protocol.Header{
-		ProxyAddress:   "127.0.0.1:8989",
-		Cipher:         "aes-256-cfb",
-		Password:       "p@ssw0rd",
-		IsClient:       true,
-		ShouldFullCone: false,
+		ProxyAddress: "127.0.0.1:8989",
+		Cipher:       "aes-256-cfb",
+		Password:     "p@ssw0rd",
+		IsClient:     true,
+		Flags:        0,
 	})
 	if err != nil {
 		t.Fatal(err)
