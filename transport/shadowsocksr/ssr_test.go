@@ -2,6 +2,8 @@ package shadowsocksr
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/direct"
@@ -10,10 +12,11 @@ import (
 	"github.com/mzz2017/softwind/transport/shadowsocksr/proto"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 )
 
-func TestSSR(t *testing.T) {
+func TestTcp(t *testing.T) {
 	// https://github.com/winterssy/SSR-Docker
 	// Remember to set protocol_param to 3000# (max_client)
 	d := direct.SymmetricDirect
@@ -39,7 +42,7 @@ func TestSSR(t *testing.T) {
 	}
 	d = &proto.Dialer{
 		NextDialer:    d,
-		Protocol:      "auth_chain_a",
+		Protocol:      "auth_aes128_sha1",
 		ProtocolParam: "",
 		ObfsOverhead:  obfsDialer.ObfsOverhead(),
 	}
@@ -65,4 +68,50 @@ func TestSSR(t *testing.T) {
 	buf.ReadFrom(resp.Body)
 	defer resp.Body.Close()
 	t.Log(buf.String())
+}
+
+func TestUdp(t *testing.T) {
+	// https://github.com/winterssy/SSR-Docker
+	// Remember to set protocol_param to 3000# (max_client)
+	d := direct.SymmetricDirect
+	d, err := shadowsocks_stream.NewDialer(d, protocol.Header{
+		ProxyAddress:   "127.0.0.1:8989",
+		Cipher:         "aes-256-cfb",
+		Password:       "p@ssw0rd",
+		IsClient:       true,
+		ShouldFullCone: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d = &proto.Dialer{
+		NextDialer:    d,
+		Protocol:      "auth_chain_b",
+		ProtocolParam: "",
+		ObfsOverhead:  0,
+	}
+
+	resolver := net.Resolver{
+		PreferGo:     true,
+		StrictErrors: false,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			if !strings.HasPrefix(network, "udp") {
+				return nil, fmt.Errorf("unsupported network")
+			}
+			c, err := d.DialUdp(address)
+			if err != nil {
+				return nil, err
+			}
+			return &netproxy.FakeNetPacketConn{
+				PacketConn: c,
+				LAddr:      nil,
+				RAddr:      nil,
+			}, nil
+		},
+	}
+	ips, err := resolver.LookupNetIP(context.TODO(), "ip", "www.baidu.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(ips)
 }

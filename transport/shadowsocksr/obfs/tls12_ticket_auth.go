@@ -14,8 +14,14 @@ import (
 )
 
 func init() {
-	register("tls1.2_ticket_auth", newTLS12TicketAuth)
-	register("tls1.2_ticket_fastauth", newTLS12TicketFastAuth)
+	register("tls1.2_ticket_auth", &constructor{
+		New:      newTLS12TicketAuth,
+		Overhead: 5,
+	})
+	register("tls1.2_ticket_fastauth", &constructor{
+		New:      newTLS12TicketFastAuth,
+		Overhead: 5,
+	})
 }
 
 type tlsAuthData struct {
@@ -304,8 +310,4 @@ func (t *tls12TicketAuth) sni(u string) []byte {
 	length += 2
 	binary.BigEndian.PutUint16(ret[2:], uint16(length&0xFFFF))
 	return ret
-}
-
-func (t *tls12TicketAuth) GetOverhead() int {
-	return 5
 }

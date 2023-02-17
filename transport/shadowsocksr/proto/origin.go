@@ -1,5 +1,10 @@
 package proto
 
+import (
+	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
+	"github.com/mzz2017/softwind/pool"
+)
+
 func init() {
 	register("origin", NewOrigin)
 }
@@ -13,7 +18,7 @@ func NewOrigin() IProtocol {
 	return a
 }
 
-func (o *origin) SetServerInfo(s *ServerInfo) {
+func (o *origin) InitWithServerInfo(s *ServerInfo) {
 	o.ServerInfo = *s
 }
 
@@ -21,11 +26,19 @@ func (o *origin) GetServerInfo() (s *ServerInfo) {
 	return &o.ServerInfo
 }
 
-func (o *origin) PreEncrypt(data []byte) (encryptedData []byte, err error) {
+func (a *origin) EncodePkt(buf *buffer.Buffer) (err error) {
+	return nil
+}
+
+func (a *origin) DecodePkt(in []byte) (out pool.Bytes, err error) {
+	return pool.B(in), nil
+}
+
+func (o *origin) Encode(data []byte) (encryptedData []byte, err error) {
 	return data, nil
 }
 
-func (o *origin) PostDecrypt(data []byte) ([]byte, int, error) {
+func (o *origin) Decode(data []byte) ([]byte, int, error) {
 	return data, len(data), nil
 }
 

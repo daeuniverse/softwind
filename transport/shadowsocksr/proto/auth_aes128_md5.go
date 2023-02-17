@@ -8,6 +8,8 @@ import (
 	"encoding/binary"
 	"github.com/mzz2017/softwind/common"
 	rand "github.com/mzz2017/softwind/pkg/fastrand"
+	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
+	"github.com/mzz2017/softwind/pool"
 	"strconv"
 	"strings"
 	"time"
@@ -37,7 +39,7 @@ type recvInfo struct {
 }
 
 type authAES128 struct {
-	ServerInfo
+	*ServerInfo
 	recvInfo
 	data          *AuthData
 	hasSentHeader bool
@@ -49,12 +51,9 @@ type authAES128 struct {
 	hashDigest    hashDigestMethod
 }
 
-func (a *authAES128) SetServerInfo(s *ServerInfo) {
-	a.ServerInfo = *s
-}
-
-func (a *authAES128) GetServerInfo() (s *ServerInfo) {
-	return &a.ServerInfo
+func (a *authAES128) InitWithServerInfo(s *ServerInfo) {
+	a.ServerInfo = s
+	a.initUser()
 }
 
 func (a *authAES128) SetData(data interface{}) {
@@ -117,6 +116,21 @@ func (a *authAES128) packData(data []byte) (outData []byte) {
 	return
 }
 
+func (a *authAES128) initUser() {
+	params := strings.Split(a.Param, ":")
+	if len(params) >= 2 {
+		if userID, err := strconv.ParseUint(params[0], 10, 32); err == nil {
+			binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
+			a.userKey = a.hashDigest([]byte(params[1]))
+		}
+	}
+
+	if a.userKey == nil {
+		rand.Read(a.uid[:])
+		a.userKey = make([]byte, len(a.Key))
+		copy(a.userKey, a.Key)
+	}
+}
 func (a *authAES128) packAuthData(data []byte) (outData []byte) {
 	dataLength := len(data)
 	var randLength int
@@ -156,22 +170,6 @@ func (a *authAES128) packAuthData(data []byte) (outData []byte) {
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(outLength&0xFFFF))
 	binary.LittleEndian.PutUint16(encrypt[14:], uint16(randLength&0xFFFF))
 
-	if a.userKey == nil {
-		params := strings.Split(a.Param, ":")
-		if len(params) >= 2 {
-			if userID, err := strconv.ParseUint(params[0], 10, 32); err == nil {
-				binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
-				a.userKey = a.hashDigest([]byte(params[1]))
-			}
-		}
-
-		if a.userKey == nil {
-			rand.Read(a.uid[:])
-			a.userKey = make([]byte, len(a.Key))
-			copy(a.userKey, a.Key)
-		}
-	}
-
 	aesCipherKey := common.EVPBytesToKey(base64.StdEncoding.EncodeToString(a.userKey)+a.salt, 16)
 	block, err := aes.NewCipher(aesCipherKey)
 	if err != nil {
@@ -200,7 +198,23 @@ func (a *authAES128) packAuthData(data []byte) (outData []byte) {
 	return
 }
 
-func (a *authAES128) PreEncrypt(plainData []byte) (outData []byte, err error) {
+func (a *authAES128) EncodePkt(buf *buffer.Buffer) (err error) {
+	buf.Write(a.uid[:])
+	buf.Write(a.hmac(a.userKey, buf.Bytes())[:4])
+	return nil
+}
+
+func (a *authAES128) DecodePkt(in []byte) (out pool.Bytes, err error) {
+	if len(in) < 4 {
+		return nil, ErrAuthAES128DataLengthError
+	}
+	if !bytes.Equal(a.hmac(a.Key, in[:len(in)-4])[:4], in[len(in)-4:]) {
+		return nil, ErrAuthAES128IncorrectChecksum
+	}
+	return pool.B(in[:len(in)-4]), nil
+}
+
+func (a *authAES128) Encode(plainData []byte) (outData []byte, err error) {
 	a.buffer.Reset()
 	dataLength := len(plainData)
 	offset := 0
@@ -226,7 +240,7 @@ func (a *authAES128) PreEncrypt(plainData []byte) (outData []byte, err error) {
 	return a.buffer.Bytes(), nil
 }
 
-func (a *authAES128) PostDecrypt(plainData []byte) ([]byte, int, error) {
+func (a *authAES128) Decode(plainData []byte) ([]byte, int, error) {
 	a.buffer.Reset()
 	plainLength := len(plainData)
 	readlenth := 0

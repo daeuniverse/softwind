@@ -14,7 +14,10 @@ type randomHead struct {
 }
 
 func init() {
-	register("random_head", newRandomHead)
+	register("random_head", &constructor{
+		New:      newRandomHead,
+		Overhead: 0,
+	})
 }
 
 func newRandomHead() IObfs {
@@ -75,8 +78,4 @@ func (r *randomHead) Decode(data []byte) (decodedData []byte, needSendBack bool,
 	}
 	r.rawTransReceived = true
 	return data, true, nil
-}
-
-func (r *randomHead) GetOverhead() int {
-	return 0
 }

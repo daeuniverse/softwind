@@ -18,9 +18,9 @@ const smallBufferSize = 64
 // A Buffer is a variable-sized buffer of bytes with Read and Write methods.
 // The zero value for Buffer is an empty buffer ready to use.
 type Buffer struct {
-	buf      []byte // contents are the bytes buf[off : len(buf)]
-	off      int    // read at &buf[off], write at &buf[len(buf)]
-	lastRead readOp // last read operation, so that Unread* can work correctly.
+	buf      pool.Bytes // contents are the bytes buf[off : len(buf)]
+	off      int        // read at &buf[off], write at &buf[len(buf)]
+	lastRead readOp     // last read operation, so that Unread* can work correctly.
 }
 
 // The readOp constants describe the last action performed on
@@ -51,7 +51,7 @@ const maxInt = int(^uint(0) >> 1)
 // only until the next call to a method like Read, Write, Reset, or Truncate).
 // The slice aliases the buffer content at least until the next buffer modification,
 // so immediate changes to the slice will affect the result of future reads.
-func (b *Buffer) Bytes() []byte { return b.buf[b.off:] }
+func (b *Buffer) Bytes() []byte { return b.buf.Bytes()[b.off:] }
 
 // String returns the contents of the unread portion of the buffer
 // as a string. If the Buffer is a nil pointer, it returns "<nil>".
@@ -62,19 +62,19 @@ func (b *Buffer) String() string {
 		// Special case, useful in debugging.
 		return "<nil>"
 	}
-	return string(b.buf[b.off:])
+	return string(b.buf.Bytes()[b.off:])
 }
 
 // empty reports whether the unread portion of the buffer is empty.
-func (b *Buffer) empty() bool { return len(b.buf) <= b.off }
+func (b *Buffer) empty() bool { return len(b.buf.Bytes()) <= b.off }
 
 // Len returns the number of bytes of the unread portion of the buffer;
 // b.Len() == len(b.Bytes()).
-func (b *Buffer) Len() int { return len(b.buf) - b.off }
+func (b *Buffer) Len() int { return len(b.buf.Bytes()) - b.off }
 
 // Cap returns the capacity of the buffer's underlying byte slice, that is, the
 // total space allocated for the buffer's data.
-func (b *Buffer) Cap() int { return cap(b.buf) }
+func (b *Buffer) Cap() int { return cap(b.buf.Bytes()) }
 
 // Truncate discards all but the first n unread bytes from the buffer
 // but continues to use the same allocated storage.
@@ -88,14 +88,14 @@ func (b *Buffer) Truncate(n int) {
 	if n < 0 || n > b.Len() {
 		panic("bytes.Buffer: truncation out of range")
 	}
-	b.buf = b.buf[:b.off+n]
+	b.buf = pool.PB(b.buf.Bytes()[:b.off+n])
 }
 
 // Reset resets the buffer to be empty,
 // but it retains the underlying storage for use by future writes.
 // Reset is the same as Truncate(0).
 func (b *Buffer) Reset() {
-	b.buf = b.buf[:0]
+	b.buf = pool.PB(b.buf.Bytes()[:0])
 	b.off = 0
 	b.lastRead = opInvalid
 }
@@ -104,8 +104,8 @@ func (b *Buffer) Reset() {
 // internal buffer only needs to be resliced.
 // It returns the index where bytes should be written and whether it succeeded.
 func (b *Buffer) tryGrowByReslice(n int) (int, bool) {
-	if l := len(b.buf); n <= cap(b.buf)-l {
-		b.buf = b.buf[:l+n]
+	if l := len(b.buf.Bytes()); n <= cap(b.buf.Bytes())-l {
+		b.buf = pool.PB(b.buf.Bytes()[:l+n])
 		return l, true
 	}
 	return 0, false
@@ -125,28 +125,31 @@ func (b *Buffer) grow(n int) int {
 		return i
 	}
 	if b.buf == nil && n <= smallBufferSize {
+		if b.buf != nil {
+			b.buf.Put()
+		}
 		b.buf = pool.Get(smallBufferSize)[:n]
 		return 0
 	}
-	c := cap(b.buf)
+	c := cap(b.buf.Bytes())
 	if n <= c/2-m {
 		// We can slide things down instead of allocating a new
 		// slice. We only need m+n <= c to slide, but
 		// we instead let capacity get twice as large so we
 		// don't spend all our time copying.
-		copy(b.buf, b.buf[b.off:])
+		copy(b.buf.Bytes(), b.buf.Bytes()[b.off:])
 	} else if c > maxInt-c-n {
 		panic(ErrTooLarge)
 	} else {
 		// Not enough space anywhere, we need to allocate.
 		buf := makeSlice(2*c + n)
-		copy(buf, b.buf[b.off:])
-		pool.Put(b.buf)
+		copy(buf, b.buf.Bytes()[b.off:])
+		b.buf.Put()
 		b.buf = buf
 	}
-	// Restore b.off and len(b.buf).
+	// Restore b.off and len(b.buf.Bytes()).
 	b.off = 0
-	b.buf = b.buf[:m+n]
+	b.buf = pool.PB(b.buf.Bytes()[:m+n])
 	return m
 }
 
@@ -160,19 +163,29 @@ func (b *Buffer) Grow(n int) {
 		panic("bytes.Buffer.Grow: negative count")
 	}
 	m := b.grow(n)
-	b.buf = b.buf[:m]
+	b.buf = pool.PB(b.buf.Bytes()[:m])
+}
+
+// Extend extends the Buffer.Len() by n.
+func (b *Buffer) Extend(n int) {
+	b.extend(n)
+}
+
+func (b *Buffer) extend(n int) int {
+	b.lastRead = opInvalid
+	m, ok := b.tryGrowByReslice(n)
+	if !ok {
+		m = b.grow(n)
+	}
+	return m
 }
 
 // Write appends the contents of p to the buffer, growing the buffer as
 // needed. The return value n is the length of p; err is always nil. If the
 // buffer becomes too large, Write will panic with ErrTooLarge.
 func (b *Buffer) Write(p []byte) (n int, err error) {
-	b.lastRead = opInvalid
-	m, ok := b.tryGrowByReslice(len(p))
-	if !ok {
-		m = b.grow(len(p))
-	}
-	return copy(b.buf[m:], p), nil
+	m := b.extend(len(p))
+	return copy(b.buf.Bytes()[m:], p), nil
 }
 
 // WriteString appends the contents of s to the buffer, growing the buffer as
@@ -184,7 +197,7 @@ func (b *Buffer) WriteString(s string) (n int, err error) {
 	if !ok {
 		m = b.grow(len(s))
 	}
-	return copy(b.buf[m:], s), nil
+	return copy(b.buf.Bytes()[m:], s), nil
 }
 
 // MinRead is the minimum slice size passed to a Read call by
@@ -201,13 +214,13 @@ func (b *Buffer) ReadFrom(r io.Reader) (n int64, err error) {
 	b.lastRead = opInvalid
 	for {
 		i := b.grow(MinRead)
-		b.buf = b.buf[:i]
-		m, e := r.Read(b.buf[i:cap(b.buf)])
+		b.buf = pool.PB(b.buf.Bytes()[:i])
+		m, e := r.Read(b.buf.Bytes()[i:cap(b.buf.Bytes())])
 		if m < 0 {
 			panic(errNegativeRead)
 		}
 
-		b.buf = b.buf[:i+m]
+		b.buf = pool.PB(b.buf.Bytes()[:i+m])
 		n += int64(m)
 		if e == io.EOF {
 			return n, nil // e is EOF, so return nil explicitly
@@ -220,7 +233,7 @@ func (b *Buffer) ReadFrom(r io.Reader) (n int64, err error) {
 
 // makeSlice allocates a slice of size n. If the allocation fails, it panics
 // with ErrTooLarge.
-func makeSlice(n int) []byte {
+func makeSlice(n int) pool.PB {
 	// If the make fails, give a known error.
 	defer func() {
 		if recover() != nil {
@@ -237,7 +250,7 @@ func makeSlice(n int) []byte {
 func (b *Buffer) WriteTo(w io.Writer) (n int64, err error) {
 	b.lastRead = opInvalid
 	if nBytes := b.Len(); nBytes > 0 {
-		m, e := w.Write(b.buf[b.off:])
+		m, e := w.Write(b.buf.Bytes()[b.off:])
 		if m > nBytes {
 			panic("bytes.Buffer.WriteTo: invalid Write count")
 		}
@@ -267,7 +280,7 @@ func (b *Buffer) WriteByte(c byte) error {
 	if !ok {
 		m = b.grow(1)
 	}
-	b.buf[m] = c
+	b.buf.Bytes()[m] = c
 	return nil
 }
 
@@ -286,8 +299,8 @@ func (b *Buffer) WriteRune(r rune) (n int, err error) {
 	if !ok {
 		m = b.grow(utf8.UTFMax)
 	}
-	n = utf8.EncodeRune(b.buf[m:m+utf8.UTFMax], r)
-	b.buf = b.buf[:m+n]
+	n = utf8.EncodeRune(b.buf.Bytes()[m:m+utf8.UTFMax], r)
+	b.buf = pool.PB(b.buf.Bytes()[:m+n])
 	return n, nil
 }
 
@@ -305,7 +318,7 @@ func (b *Buffer) Read(p []byte) (n int, err error) {
 		}
 		return 0, io.EOF
 	}
-	n = copy(p, b.buf[b.off:])
+	n = copy(p, b.buf.Bytes()[b.off:])
 	b.off += n
 	if n > 0 {
 		b.lastRead = opRead
@@ -323,7 +336,7 @@ func (b *Buffer) Next(n int) []byte {
 	if n > m {
 		n = m
 	}
-	data := b.buf[b.off : b.off+n]
+	data := b.buf.Bytes()[b.off : b.off+n]
 	b.off += n
 	if n > 0 {
 		b.lastRead = opRead
@@ -339,7 +352,7 @@ func (b *Buffer) ReadByte() (byte, error) {
 		b.Reset()
 		return 0, io.EOF
 	}
-	c := b.buf[b.off]
+	c := b.buf.Bytes()[b.off]
 	b.off++
 	b.lastRead = opRead
 	return c, nil
@@ -356,13 +369,13 @@ func (b *Buffer) ReadRune() (r rune, size int, err error) {
 		b.Reset()
 		return 0, 0, io.EOF
 	}
-	c := b.buf[b.off]
+	c := b.buf.Bytes()[b.off]
 	if c < utf8.RuneSelf {
 		b.off++
 		b.lastRead = opReadRune1
 		return rune(c), 1, nil
 	}
-	r, n := utf8.DecodeRune(b.buf[b.off:])
+	r, n := utf8.DecodeRune(b.buf.Bytes()[b.off:])
 	b.off += n
 	b.lastRead = readOp(n)
 	return r, n, nil
@@ -417,13 +430,13 @@ func (b *Buffer) ReadBytes(delim byte) (line []byte, err error) {
 
 // readSlice is like ReadBytes but returns a reference to internal buffer data.
 func (b *Buffer) readSlice(delim byte) (line []byte, err error) {
-	i := bytes.IndexByte(b.buf[b.off:], delim)
+	i := bytes.IndexByte(b.buf.Bytes()[b.off:], delim)
 	end := b.off + i + 1
 	if i < 0 {
-		end = len(b.buf)
+		end = len(b.buf.Bytes())
 		err = io.EOF
 	}
-	line = b.buf[b.off:end]
+	line = b.buf.Bytes()[b.off:end]
 	b.off = end
 	b.lastRead = opRead
 	return line, err
@@ -440,10 +453,8 @@ func (b *Buffer) ReadString(delim byte) (line string, err error) {
 	return string(slice), err
 }
 
-
-func (b *Buffer) Close() (err error) {
-	pool.Put(b.buf)
-	return nil
+func (b *Buffer) Put() {
+	b.buf.Put()
 }
 
 // NewBuffer creates and initializes a new Buffer using buf as its
@@ -455,14 +466,12 @@ func (b *Buffer) Close() (err error) {
 //
 // In most cases, new(Buffer) (or just declaring a Buffer variable) is
 // sufficient to initialize a Buffer.
-func NewBuffer(buf []byte) *Buffer { return &Buffer{buf: buf} }
-
-// NewBufferString creates and initializes a new Buffer using string s as its
-// initial contents. It is intended to prepare a buffer to read an existing
-// string.
-//
-// In most cases, new(Buffer) (or just declaring a Buffer variable) is
-// sufficient to initialize a Buffer.
-func NewBufferString(s string) *Buffer {
-	return &Buffer{buf: []byte(s)}
+func NewBuffer(size int) *Buffer {
+	if size == 0 {
+		size = 512
+	}
+	return &Buffer{buf: pool.GetMustBigger(size)[:0]}
+}
+func NewBufferFrom(b pool.Bytes) *Buffer {
+	return &Buffer{buf: b}
 }

@@ -17,6 +17,7 @@ func NewAuthChainB() IProtocol {
 		hmac:       common.HmacMD5,
 		hashDigest: common.SHA1Sum,
 		rnd:        authChainBGetRandLen,
+		rndPkt:     authChainAPktGetRandLen,
 		recvInfo: recvInfo{
 			recvID: 1,
 			buffer: new(bytes.Buffer),

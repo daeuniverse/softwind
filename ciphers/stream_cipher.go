@@ -265,17 +265,14 @@ func (c *StreamCipher) InitEncrypt() (iv []byte, err error) {
 	return iv, nil
 }
 
-func (c *StreamCipher) NewEncryptor(buf []byte) (enc cipher.Stream, err error) {
-	if buf == nil {
-		buf = pool.Get(c.info.ivLen)
-		defer pool.Put(buf)
+func (c *StreamCipher) NewEncryptor(iv []byte) (enc cipher.Stream, err error) {
+	if iv == nil {
+		iv = pool.Get(c.info.ivLen)
+		defer pool.Put(iv)
 	}
-	buf = buf[:c.info.ivLen]
-	rand.Read(buf)
-	if c.enc, err = c.info.newStream(c.key, buf, Encrypt); err != nil {
-		return nil, err
-	}
-	return nil, err
+	iv = iv[:c.info.ivLen]
+	rand.Read(iv)
+	return c.info.newStream(c.key, iv, Encrypt)
 }
 
 func (c *StreamCipher) InitDecrypt(iv []byte) (err error) {

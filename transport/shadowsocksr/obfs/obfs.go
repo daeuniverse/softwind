@@ -4,10 +4,15 @@ import (
 	"strings"
 )
 
-type creator func() IObfs
+type Creator func() IObfs
+
+type constructor struct {
+	New Creator
+	Overhead int
+}
 
 var (
-	creatorMap = make(map[string]creator)
+	creatorMap = make(map[string]*constructor)
 )
 
 type IObfs interface {
@@ -17,26 +22,25 @@ type IObfs interface {
 	Decode(data []byte) (decodedData []byte, needSendBack bool, err error)
 	SetData(data interface{})
 	GetData() interface{}
-	GetOverhead() int
 }
 
-func register(name string, c creator) {
+func register(name string, c *constructor) {
 	creatorMap[name] = c
 }
 
 // NewObfs create an Obfs object by name and return as an IObfs interface
-func NewObfs(name string) IObfs {
+func NewObfs(name string) *constructor {
 	c, ok := creatorMap[strings.ToLower(name)]
 	if ok {
-		return c()
+		return c
 	}
 	return nil
 }
 
 type ServerInfo struct {
-	Host    string
-	Port    uint16
-	Param   string
+	Host  string
+	Port  uint16
+	Param string
 
 	AddrLen int
 	Key     []byte

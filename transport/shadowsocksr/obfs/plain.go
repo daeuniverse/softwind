@@ -1,7 +1,10 @@
 package obfs
 
 func init() {
-	register("plain", newPlainObfs)
+	register("plain", &constructor{
+		New:      newPlainObfs,
+		Overhead: 0,
+	})
 }
 
 type plain struct {
@@ -35,8 +38,4 @@ func (p *plain) SetData(data interface{}) {
 
 func (p *plain) GetData() interface{} {
 	return nil
-}
-
-func (p *plain) GetOverhead() int {
-	return 0
 }

@@ -5,7 +5,10 @@ import (
 )
 
 func init() {
-	register("http_post", newHttpPost)
+	register("http_post", &constructor{
+		New:      newHttpPost,
+		Overhead: 0,
+	})
 }
 
 // newHttpPost create a http_post object

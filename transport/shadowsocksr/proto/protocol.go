@@ -1,6 +1,8 @@
 package proto
 
 import (
+	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
+	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/transport/shadowsocksr/internal/crypto"
 	"strings"
 )
@@ -14,12 +16,14 @@ var (
 type hmacMethod func(key []byte, data []byte) []byte
 type hashDigestMethod func(data []byte) []byte
 type rndMethod func(dataLength int, random *crypto.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int
+type pktRndMethod func(random *crypto.Shift128plusContext, lastHash []byte) int
 
 type IProtocol interface {
-	SetServerInfo(s *ServerInfo)
-	GetServerInfo() *ServerInfo
-	PreEncrypt(data []byte) ([]byte, error)
-	PostDecrypt(data []byte) ([]byte, int, error)
+	InitWithServerInfo(s *ServerInfo)
+	Encode(data []byte) ([]byte, error)
+	Decode(data []byte) ([]byte, int, error)
+	EncodePkt(buf *buffer.Buffer) error
+	DecodePkt(data []byte) (pool.Bytes, error)
 	SetData(data interface{})
 	GetData() interface{}
 	GetOverhead() int

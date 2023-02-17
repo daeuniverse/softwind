@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"github.com/mzz2017/softwind/common"
 	rand "github.com/mzz2017/softwind/pkg/fastrand"
+	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
+	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/transport/shadowsocksr/internal/crypto"
 	"time"
 )
@@ -14,7 +16,7 @@ func init() {
 }
 
 type authSHA1v4 struct {
-	ServerInfo
+	*ServerInfo
 	data          *AuthData
 	hasSentHeader bool
 	buffer        bytes.Buffer
@@ -25,12 +27,8 @@ func NewAuthSHA1v4() IProtocol {
 	return a
 }
 
-func (a *authSHA1v4) SetServerInfo(s *ServerInfo) {
-	a.ServerInfo = *s
-}
-
-func (a *authSHA1v4) GetServerInfo() (s *ServerInfo) {
-	return &a.ServerInfo
+func (a *authSHA1v4) InitWithServerInfo(s *ServerInfo) {
+	a.ServerInfo = s
 }
 
 func (a *authSHA1v4) SetData(data interface{}) {
@@ -151,7 +149,15 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	return outData
 }
 
-func (a *authSHA1v4) PreEncrypt(plainData []byte) (outData []byte, err error) {
+func (a *authSHA1v4) EncodePkt(buf *buffer.Buffer) (err error) {
+	return nil
+}
+
+func (a *authSHA1v4) DecodePkt(in []byte) (out pool.Bytes, err error) {
+	return pool.B(in), nil
+}
+
+func (a *authSHA1v4) Encode(plainData []byte) (outData []byte, err error) {
 	a.buffer.Reset()
 	dataLength := len(plainData)
 	offset := 0
@@ -178,7 +184,7 @@ func (a *authSHA1v4) PreEncrypt(plainData []byte) (outData []byte, err error) {
 	return a.buffer.Bytes(), nil
 }
 
-func (a *authSHA1v4) PostDecrypt(plainData []byte) (outData []byte, n int, err error) {
+func (a *authSHA1v4) Decode(plainData []byte) (outData []byte, n int, err error) {
 	a.buffer.Reset()
 	dataLength := len(plainData)
 	plainLength := dataLength

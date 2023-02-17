@@ -81,3 +81,7 @@ func StringsHas(strs []string, str string) bool {
 	}
 	return false
 }
+
+func HeadOverlap(p, b []byte) bool {
+	return len(p) > 0 && len(b) > 0 && &p[0] == &b[0]
+}

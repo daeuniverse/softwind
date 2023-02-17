@@ -3,7 +3,6 @@ package proto
 import (
 	"bytes"
 	"fmt"
-	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol/shadowsocks_stream"
@@ -17,8 +16,6 @@ type Conn struct {
 	underPostdecryptBuf *bytes.Buffer
 	readLater           io.Reader
 
-	init       bool
-	innerIvLen int
 	writeMu    sync.Mutex
 	readMu     sync.Mutex
 }
@@ -34,36 +31,6 @@ func NewConn(c netproxy.Conn, proto IProtocol) (*Conn, error) {
 		Protocol:            proto,
 		underPostdecryptBuf: new(bytes.Buffer),
 	}, nil
-}
-
-func (c *Conn) InnerCipher() *ciphers.StreamCipher {
-	switch innerConn := c.Conn.(type) {
-	case *shadowsocks_stream.TcpConn:
-		return innerConn.Cipher()
-	default:
-		return nil
-	}
-}
-
-func (c *Conn) initEncoder(b []byte) (err error) {
-	iv, err := c.InnerCipher().InitEncrypt()
-	if err != nil {
-		return err
-	}
-	c.innerIvLen = len(iv)
-	key := c.InnerCipher().Key()
-	if key == nil {
-		return fmt.Errorf("inner conn did not init Key")
-	}
-
-	protocolServerInfo := c.Protocol.GetServerInfo()
-	protocolServerInfo.IV = iv
-	protocolServerInfo.Key = key
-	protocolServerInfo.AddrLen = len(b)
-	c.Protocol.SetServerInfo(protocolServerInfo)
-	c.Protocol.SetData(c.Protocol.GetData())
-
-	return nil
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
@@ -92,7 +59,7 @@ readAgain:
 	c.underPostdecryptBuf.Write(buf[:n])
 	// and read it to buf immediately
 	buf = c.underPostdecryptBuf.Bytes()
-	postDecryptedData, length, err := c.Protocol.PostDecrypt(buf)
+	postDecryptedData, length, err := c.Protocol.Decode(buf)
 	if err != nil {
 		c.underPostdecryptBuf.Reset()
 		return 0, err
@@ -111,23 +78,11 @@ readAgain:
 	return n, nil
 }
 
-func (c *Conn) encode(b []byte) (outData []byte, err error) {
-	if !c.init {
-		c.init = true
-		err = c.initEncoder(b)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return c.Protocol.PreEncrypt(b)
-}
-
 func (c *Conn) Write(b []byte) (n int, err error) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	// Conn Write: obfs<-ss<-proto
-	data, err := c.encode(b)
+	data, err := c.Protocol.Encode(b)
 	if err != nil {
 		return 0, err
 	}

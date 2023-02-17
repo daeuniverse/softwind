@@ -37,11 +37,24 @@ func GetClosestN(need int) (n int) {
 	return bits.Len32(uint32(need))
 }
 
+func GetBiggerClosestN(need int) (n int) {
+	// or return its closest n
+	return bits.Len32(uint32(need))
+}
+
 // Get gets a buffer from pool, size should in range: [1, 65536],
 // otherwise, this function will call make([]byte, size) directly.
-func Get(size int) []byte {
+func Get(size int) PB {
 	if size >= 1 && size <= maxsize {
 		i := GetClosestN(size)
+		return pools[i].Get().([]byte)[:size]
+	}
+	return make([]byte, size)
+}
+
+func GetMustBigger(size int) PB {
+	if size >= 1 && size <= maxsize {
+		i := GetBiggerClosestN(size)
 		return pools[i].Get().([]byte)[:size]
 	}
 	return make([]byte, size)

@@ -43,7 +43,26 @@ type FakeNetConn struct {
 func (conn *FakeNetConn) LocalAddr() net.Addr {
 	return conn.LAddr
 }
-
 func (conn *FakeNetConn) RemoteAddr() net.Addr {
+	return conn.RAddr
+}
+
+type FakeNetPacketConn struct {
+	PacketConn
+	LAddr net.Addr
+	RAddr net.Addr
+}
+
+func (conn *FakeNetPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+	n, a, err := conn.PacketConn.ReadFrom(p)
+	return n, net.UDPAddrFromAddrPort(a), err
+}
+func (conn *FakeNetPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	return conn.PacketConn.WriteTo(p, addr.String())
+}
+func (conn *FakeNetPacketConn) LocalAddr() net.Addr {
+	return conn.LAddr
+}
+func (conn *FakeNetPacketConn) RemoteAddr() net.Addr {
 	return conn.RAddr
 }

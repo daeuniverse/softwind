@@ -6,11 +6,14 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rc4"
 	"encoding/base64"
 	"encoding/binary"
 	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/common"
 	rand "github.com/mzz2017/softwind/pkg/fastrand"
+	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
+	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/transport/shadowsocksr/internal/crypto"
 	"strconv"
 	"strings"
@@ -22,7 +25,7 @@ func init() {
 }
 
 type authChainA struct {
-	ServerInfo
+	*ServerInfo
 	randomClient crypto.Shift128plusContext
 	randomServer crypto.Shift128plusContext
 	recvInfo
@@ -38,6 +41,7 @@ type authChainA struct {
 	hmac           hmacMethod
 	hashDigest     hashDigestMethod
 	rnd            rndMethod
+	rndPkt         pktRndMethod
 	dataSizeList   []int
 	dataSizeList2  []int
 	chunkID        uint32
@@ -49,6 +53,7 @@ func NewAuthChainA() IProtocol {
 		hmac:       common.HmacMD5,
 		hashDigest: common.SHA1Sum,
 		rnd:        authChainAGetRandLen,
+		rndPkt:     authChainAPktGetRandLen,
 		recvInfo: recvInfo{
 			recvID: 1,
 			buffer: new(bytes.Buffer),
@@ -57,15 +62,30 @@ func NewAuthChainA() IProtocol {
 	return a
 }
 
-func (a *authChainA) SetServerInfo(s *ServerInfo) {
-	a.ServerInfo = *s
-	if a.salt == "auth_chain_b" {
-		a.authChainBInitDataSize()
+func (a *authChainA) initUser() {
+	params := strings.Split(a.ServerInfo.Param, ":")
+	if len(params) >= 2 {
+		if userID, err := strconv.Atoi(params[0]); err == nil {
+			binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
+			a.userKeyLen = len(params[1])
+			a.userKey = []byte(params[1])
+		}
+	}
+	if a.userKey == nil {
+		rand.Read(a.uid[:])
+
+		a.userKeyLen = len(a.Key)
+		a.userKey = make([]byte, len(a.Key))
+		copy(a.userKey, a.Key)
 	}
 }
 
-func (a *authChainA) GetServerInfo() (s *ServerInfo) {
-	return &a.ServerInfo
+func (a *authChainA) InitWithServerInfo(s *ServerInfo) {
+	a.ServerInfo = s
+	if a.salt == "auth_chain_b" {
+		a.authChainBInitDataSize()
+	}
+	a.initUser()
 }
 
 func (a *authChainA) SetData(data interface{}) {
@@ -181,23 +201,6 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	// uid & 16 bytes auth data
 	{
 		uid := make([]byte, 4)
-		if a.userKey == nil {
-			params := strings.Split(a.ServerInfo.Param, ":")
-			if len(params) >= 2 {
-				if userID, err := strconv.Atoi(params[0]); err == nil {
-					binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
-					a.userKeyLen = len(params[1])
-					a.userKey = []byte(params[1])
-				}
-			}
-			if a.userKey == nil {
-				rand.Read(a.uid[:])
-
-				a.userKeyLen = len(a.Key)
-				a.userKey = make([]byte, len(a.Key))
-				copy(a.userKey, a.Key)
-			}
-		}
 		for i := 0; i < 4; i++ {
 			uid[i] = a.uid[i] ^ a.lastClientHash[8+i]
 		}
@@ -243,7 +246,57 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	return outData
 }
 
-func (a *authChainA) PreEncrypt(plainData []byte) (outData []byte, err error) {
+func authChainAPktGetRandLen(ctx *crypto.Shift128plusContext, lastHash []byte) int {
+	ctx.InitFromBin(lastHash)
+	return int(ctx.Next() % 127)
+}
+
+func (a *authChainA) EncodePkt(buf *buffer.Buffer) (err error) {
+	authData := pool.Get(3)
+	defer pool.Put(authData)
+	rand.Read(authData)
+
+	md5Data := a.hmac(a.Key, authData)
+
+	randDataLength := a.rndPkt(&a.randomClient, md5Data)
+
+	key := common.EVPBytesToKey(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
+	rc4Cipher, err := rc4.NewCipher(key)
+	if err != nil {
+		return err
+	}
+	rc4Cipher.XORKeyStream(buf.Bytes(), buf.Bytes())
+
+	buf.Extend(randDataLength)
+	rand.Read(buf.Bytes()[buf.Len()-randDataLength:])
+	buf.Write(authData)
+	binary.Write(buf, binary.LittleEndian, binary.LittleEndian.Uint32(a.uid[:])^binary.LittleEndian.Uint32(md5Data[:4]))
+	buf.Write(a.hmac(a.userKey, buf.Bytes())[:1])
+	return nil
+}
+
+func (a *authChainA) DecodePkt(in []byte) (out pool.Bytes, err error) {
+	if len(in) < 9 {
+		return nil, ErrAuthChainDataLengthError
+	}
+	if !bytes.Equal(a.hmac(a.userKey, in[:len(in)-1])[:1], in[len(in)-1:]) {
+		return nil, ErrAuthChainIncorrectHMAC
+	}
+	md5Data := a.hmac(a.Key, in[len(in)-8:len(in)-1])
+
+	randDataLength := a.rndPkt(&a.randomServer, md5Data)
+
+	key := common.EVPBytesToKey(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
+	rc4Cipher, err := rc4.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	data := in[:len(in)-8-randDataLength]
+	rc4Cipher.XORKeyStream(data, data)
+	return pool.B(data), nil
+}
+
+func (a *authChainA) Encode(plainData []byte) (outData []byte, err error) {
 	a.buffer.Reset()
 	dataLength := len(plainData)
 	offset := 0
@@ -275,7 +328,7 @@ func (a *authChainA) PreEncrypt(plainData []byte) (outData []byte, err error) {
 	return a.buffer.Bytes(), nil
 }
 
-func (a *authChainA) PostDecrypt(plainData []byte) (outData []byte, n int, err error) {
+func (a *authChainA) Decode(plainData []byte) (outData []byte, n int, err error) {
 	a.buffer.Reset()
 	key := make([]byte, len(a.userKey)+4)
 	readlenth := 0

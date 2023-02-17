@@ -3,6 +3,7 @@ package proto
 import (
 	"errors"
 	"fmt"
+	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/protocol/infra/socks"
 	"github.com/mzz2017/softwind/protocol/shadowsocks_stream"
@@ -16,27 +17,48 @@ type Dialer struct {
 	protocolData  interface{}
 }
 
+func (d *Dialer) protocolFromInnerConn(conn netproxy.Conn, addr socks.Addr) (proto IProtocol, err error) {
+	proto = NewProtocol(d.Protocol)
+	if proto == nil {
+		return nil, errors.New("unsupported protocol type: " + d.Protocol)
+	}
+	proto.SetData(proto.GetData())
+	switch c := conn.(type) {
+	case interface{ Cipher() *ciphers.StreamCipher }:
+		iv, err := c.Cipher().InitEncrypt()
+		if err != nil {
+			return nil, err
+		}
+		key := c.Cipher().Key()
+		if key == nil {
+			return nil, fmt.Errorf("ss conn did not init Key")
+		}
+		proto.InitWithServerInfo(&ServerInfo{
+			Param:    d.ProtocolParam,
+			TcpMss:   1460,
+			IV:       iv,
+			Key:      key,
+			AddrLen:  len(addr),
+			Overhead: proto.GetOverhead() + d.ObfsOverhead,
+		})
+		return proto, nil
+	default:
+		return nil, fmt.Errorf("unsupported conn: %T", conn)
+	}
+}
 func (d *Dialer) DialTcp(address string) (conn netproxy.Conn, err error) {
 	addr, err := socks.ParseAddr(address)
 	if err != nil {
 		return nil, err
 	}
 
-	proto := NewProtocol(d.Protocol)
-	if proto == nil {
-		return nil, errors.New("unsupported protocol type: " + d.Protocol)
-	}
-
-	protocolServerInfo := &ServerInfo{
-		Param:    d.ProtocolParam,
-		TcpMss:   1460,
-		Overhead: proto.GetOverhead() + d.ObfsOverhead,
-	}
-	proto.SetServerInfo(protocolServerInfo)
-
 	switch nextDialer := d.NextDialer.(type) {
 	case *shadowsocks_stream.Dialer:
-		conn, err = nextDialer.DialTcpNoSendAddr(address)
+		conn, err = nextDialer.DialTcpTransport()
+		if err != nil {
+			return nil, err
+		}
+		proto, err := d.protocolFromInnerConn(conn, addr)
 		if err != nil {
 			return nil, err
 		}
@@ -54,5 +76,26 @@ func (d *Dialer) DialTcp(address string) (conn netproxy.Conn, err error) {
 }
 
 func (d *Dialer) DialUdp(address string) (netproxy.PacketConn, error) {
-	return nil, netproxy.UnsupportedTunnelTypeError
+	addr, err := socks.ParseAddr(address)
+	if err != nil {
+		return nil, err
+	}
+
+
+	switch nextDialer := d.NextDialer.(type) {
+	case *shadowsocks_stream.Dialer:
+		c, err := nextDialer.DialUdpTransport()
+		if err != nil {
+			return nil, err
+		}
+
+		proto, err := d.protocolFromInnerConn(c, addr)
+		if err != nil {
+			return nil, err
+		}
+
+		return NewPacketConn(c, proto, address)
+	default:
+		return nil, fmt.Errorf("unsupported inner dialer: %T", nextDialer)
+	}
 }

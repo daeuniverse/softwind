@@ -44,7 +44,10 @@ type httpSimplePost struct {
 }
 
 func init() {
-	register("http_simple", newHttpSimple)
+	register("http_simple", &constructor{
+		New:      newHttpSimple,
+		Overhead: 0,
+	})
 }
 
 // newHttpSimple create a http_simple object
@@ -183,8 +186,4 @@ func (t *httpSimplePost) Decode(data []byte) (decodedData []byte, needSendBack b
 		t.rawTransReceived = true
 	}
 	return decodedData, false, nil
-}
-
-func (t *httpSimplePost) GetOverhead() int {
-	return 0
 }
