@@ -207,6 +207,7 @@ var streamCipherMethod = map[string]*cipherInfo{
 	"seed-cfb":         {16, 8, newSeedStream},
 	"rc4":              {16, 0, newRC4Stream},
 	"none":             {16, 0, newNoneStream},
+	"plain":            {16, 0, newNoneStream},
 }
 
 type StreamCipher struct {
