@@ -58,5 +58,5 @@ func (d *Dialer) DialTcp(address string) (netproxy.Conn, error) {
 }
 
 func (d *Dialer) DialUdp(address string) (netproxy.PacketConn, error) {
-	return nil, netproxy.UnsupportedTunnelTypeError
+	return d.NextDialer.DialUdp(address)
 }

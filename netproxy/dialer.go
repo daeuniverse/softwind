@@ -45,6 +45,7 @@ func (d *ContextDialer) DialUdpContext(ctx context.Context, addr string) (c Pack
 	go func() {
 		c, err = d.Dialer.DialUdp(addr)
 		if err != nil {
+			close(done)
 			return
 		}
 		select {

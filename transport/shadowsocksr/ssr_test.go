@@ -42,7 +42,7 @@ func TestTcp(t *testing.T) {
 	}
 	d = &proto.Dialer{
 		NextDialer:    d,
-		Protocol:      "auth_aes128_sha1",
+		Protocol:      "auth_chain_b",
 		ProtocolParam: "",
 		ObfsOverhead:  obfsDialer.ObfsOverhead(),
 	}
