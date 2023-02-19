@@ -3,8 +3,10 @@ package http
 import (
 	"crypto/tls"
 	"github.com/mzz2017/softwind/netproxy"
+	"net"
 	"net/url"
 	"strconv"
+	"syscall"
 )
 
 // HttpProxy is an HTTP/HTTPS proxy.
@@ -45,6 +47,14 @@ func (s *HttpProxy) DialUdp(addr string) (netproxy.PacketConn, error) {
 	return nil, netproxy.UnsupportedTunnelTypeError
 }
 
+type tlsConnWrapper struct {
+	*tls.Conn
+}
+
+func (w tlsConnWrapper) SyscallConn() (syscall.RawConn, error) {
+	return w.NetConn().(*net.TCPConn).SyscallConn()
+}
+
 func (s *HttpProxy) DialTcp(addr string) (netproxy.Conn, error) {
 	// DialTcp and create the https client connection.
 	c, err := s.dialer.DialTcp(s.Host)
@@ -52,11 +62,13 @@ func (s *HttpProxy) DialTcp(addr string) (netproxy.Conn, error) {
 		return nil, err
 	}
 	if s.TlsConfig != nil {
-		c = tls.Client(&netproxy.FakeNetConn{
-			Conn:  c,
-			LAddr: nil,
-			RAddr: nil,
-		}, s.TlsConfig)
+		c = tlsConnWrapper{
+			Conn: tls.Client(&netproxy.FakeNetConn{
+				Conn:  c,
+				LAddr: nil,
+				RAddr: nil,
+			}, s.TlsConfig),
+		}
 	}
 	return NewConn(c, s, addr), nil
 }
