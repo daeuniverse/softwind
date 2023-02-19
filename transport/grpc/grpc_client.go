@@ -19,7 +19,6 @@ import (
 	"net"
 	"os"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -287,10 +286,6 @@ func (c *ClientConn) SetWriteDeadline(t time.Time) error {
 		}
 	}
 	return nil
-}
-
-func (c *ClientConn) SyscallConn() (syscall.RawConn, error) {
-	return nil, fmt.Errorf("grpc not support to get SyscallRawConn")
 }
 
 type Dialer struct {

@@ -11,11 +11,13 @@ var FullconeDirect = newDirect(true)
 
 type direct struct {
 	netproxy.Dialer
+	nextDialer *net.Dialer
 	fullCone   bool
 }
 
 func newDirect(fullCone bool) netproxy.Dialer {
 	return &direct{
+		nextDialer: &net.Dialer{},
 		fullCone:   fullCone,
 	}
 }
@@ -29,7 +31,7 @@ func (d *direct) DialUdp(addr string) (c netproxy.PacketConn, err error) {
 		}
 		return &directUDPConn{UDPConn: conn, FullCone: true}, nil
 	} else {
-		conn, err := net.Dial("udp", addr)
+		conn, err := d.nextDialer.Dial("udp", addr)
 		if err != nil {
 			return nil, err
 		}
@@ -38,8 +40,8 @@ func (d *direct) DialUdp(addr string) (c netproxy.PacketConn, err error) {
 }
 
 func (d *direct) DialTcp(addr string) (c netproxy.Conn, err error) {
-	conn, err := net.Dial("tcp", addr)
-	return conn.(*net.TCPConn), err
+	conn, err := d.nextDialer.Dial("tcp", addr)
+	return conn, err
 }
 
 type directUDPConn struct {

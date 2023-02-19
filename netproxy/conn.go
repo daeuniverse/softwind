@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"syscall"
 	"time"
 )
 
@@ -22,7 +21,6 @@ type Conn interface {
 	SetDeadline(t time.Time) error
 	SetReadDeadline(t time.Time) error
 	SetWriteDeadline(t time.Time) error
-	SyscallConn() (syscall.RawConn, error)
 }
 
 type PacketConn interface {
@@ -34,7 +32,6 @@ type PacketConn interface {
 	SetDeadline(t time.Time) error
 	SetReadDeadline(t time.Time) error
 	SetWriteDeadline(t time.Time) error
-	SyscallConn() (syscall.RawConn, error)
 }
 
 type FakeNetConn struct {
