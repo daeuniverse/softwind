@@ -31,7 +31,3 @@ func (b PB) Bytes() []byte {
 func (b PB) HeadOverlap(p []byte) bool {
 	return common.HeadOverlap(p, b)
 }
-
-func GetBytes(size int) PB {
-	return Get(size)
-}
