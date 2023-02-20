@@ -47,7 +47,7 @@ func (id *ID) UUID() uuid.UUID {
 	return id.uuid
 }
 
-func (id ID) CmdKey() []byte {
+func (id *ID) CmdKey() []byte {
 	return id.cmdKey[:]
 }
 

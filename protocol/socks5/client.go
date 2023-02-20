@@ -21,6 +21,21 @@ func NewSocks5Dialer(s string, d netproxy.Dialer) (netproxy.Dialer, error) {
 	return NewSocks5(s, d)
 }
 
+func (s *Socks5) Dial(network, addr string) (netproxy.Conn, error) {
+	magicNetwork, err := netproxy.ParseMagicNetwork(network)
+	if err != nil {
+		return nil, err
+	}
+	switch magicNetwork.Network {
+	case "tcp":
+		return s.DialTcp(addr)
+	case "udp":
+		return s.DialUdp(addr)
+	default:
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
+	}
+}
+
 func (s *Socks5) DialTcp(addr string) (netproxy.Conn, error) {
 	c, err := s.dialer.DialTcp(s.addr)
 	if err != nil {

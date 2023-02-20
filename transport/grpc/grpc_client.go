@@ -295,12 +295,27 @@ type Dialer struct {
 	AllowInsecure bool
 }
 
+func (d *Dialer) Dial(network, address string) (netproxy.Conn, error) {
+	magicNetwork, err := netproxy.ParseMagicNetwork(network)
+	if err != nil {
+		return nil, err
+	}
+	switch magicNetwork.Network {
+	case "tcp":
+		return d.DialTcp(address)
+	case "udp":
+		return d.DialUdp(address)
+	default:
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
+	}
+}
+
 func (d *Dialer) DialTcp(address string) (netproxy.Conn, error) {
 	return d.DialContext(context.Background(), "tcp", address)
 }
 
 func (d *Dialer) DialUdp(address string) (netproxy.PacketConn, error) {
-	return nil, netproxy.UnsupportedTunnelTypeError
+	return nil, fmt.Errorf("%w: udp", netproxy.UnsupportedTunnelTypeError)
 }
 
 func (d *Dialer) DialContext(ctx context.Context, network string, address string) (netproxy.Conn, error) {

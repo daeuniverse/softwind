@@ -1,6 +1,7 @@
 package shadowsocks
 
 import (
+	"fmt"
 	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/common"
 	"github.com/mzz2017/softwind/netproxy"
@@ -29,6 +30,21 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 		},
 		key: common.EVPBytesToKey(header.Password, ciphers.AeadCiphersConf[header.Cipher].KeyLen),
 	}, nil
+}
+
+func (d *Dialer) Dial(network, addr string) (netproxy.Conn, error) {
+	magicNetwork, err := netproxy.ParseMagicNetwork(network)
+	if err != nil {
+		return nil, err
+	}
+	switch magicNetwork.Network {
+	case "tcp":
+		return d.DialTcp(addr)
+	case "udp":
+		return d.DialUdp(addr)
+	default:
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
+	}
 }
 
 func (d *Dialer) DialTcp(addr string) (c netproxy.Conn, err error) {

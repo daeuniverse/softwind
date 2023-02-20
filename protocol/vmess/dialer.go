@@ -1,12 +1,12 @@
 package vmess
 
 import (
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/mzz2017/softwind/common"
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/transport/grpc"
-	"net"
 )
 
 func init() {
@@ -70,11 +70,19 @@ func (d *Dialer) DialTcp(addr string) (c netproxy.Conn, err error) {
 }
 
 func (d *Dialer) DialUdp(addr string) (c netproxy.PacketConn, err error) {
-	return d.Dial("udp", addr)
+	pktConn, err := d.Dial("udp", addr)
+	if err != nil {
+		return nil, err
+	}
+	return pktConn.(netproxy.PacketConn), nil
 }
 
-func (d *Dialer) Dial(network string, addr string) (c netproxy.FullConn, err error) {
-	switch network {
+func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) {
+	magicNetwork, err := netproxy.ParseMagicNetwork(network)
+	if err != nil {
+		return nil, err
+	}
+	switch magicNetwork.Network {
 	case "tcp", "udp":
 		mdata, err := protocol.ParseMetadata(addr)
 		if err != nil {
@@ -104,6 +112,6 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.FullConn, err err
 			Network:  network,
 		}, addr, d.key)
 	default:
-		return nil, net.UnknownNetworkError(network)
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
 	}
 }

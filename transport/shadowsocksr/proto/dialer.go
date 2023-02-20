@@ -46,6 +46,22 @@ func (d *Dialer) protocolFromInnerConn(conn netproxy.Conn, addr socks.Addr) (pro
 		return nil, fmt.Errorf("unsupported conn: %T", conn)
 	}
 }
+
+func (d *Dialer) Dial(network, addr string) (netproxy.Conn, error) {
+	magicNetwork, err := netproxy.ParseMagicNetwork(network)
+	if err != nil {
+		return nil, err
+	}
+	switch magicNetwork.Network {
+	case "tcp":
+		return d.DialTcp(addr)
+	case "udp":
+		return d.DialUdp(addr)
+	default:
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
+	}
+}
+
 func (d *Dialer) DialTcp(address string) (conn netproxy.Conn, err error) {
 	addr, err := socks.ParseAddr(address)
 	if err != nil {
@@ -80,7 +96,6 @@ func (d *Dialer) DialUdp(address string) (netproxy.PacketConn, error) {
 	if err != nil {
 		return nil, err
 	}
-
 
 	switch nextDialer := d.NextDialer.(type) {
 	case *shadowsocks_stream.Dialer:

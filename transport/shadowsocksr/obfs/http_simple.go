@@ -112,7 +112,7 @@ func (t *httpSimplePost) Encode(data []byte) (encodedData []byte, err error) {
 	if headSize := t.IVLen + t.AddrLen; len(data)-headSize > 64 {
 		headData = data[:headSize+rand.Intn(64)]
 	} else {
-		headData = data[:len(data)]
+		headData = data[:]
 	}
 	requestPathIndex := rand.Intn(len(requestPath)/2) * 2
 	host := t.Host

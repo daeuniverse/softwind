@@ -11,6 +11,7 @@ const Alphabet64Grpc = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123
 
 var Base62Encoder, _ = basex.NewEncoding(Alphabet)
 var Base64GrpcEncoder, _ = basex.NewEncoding(Alphabet64Grpc)
+var IntSize = 32 << (^uint(0) >> 63)
 
 func BytesIncBigEndian(b []byte) {
 	for i := len(b) - 1; i >= 0; i-- {

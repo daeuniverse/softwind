@@ -1,13 +1,12 @@
 package netproxy
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
 	"time"
 )
 
-var UnsupportedTunnelTypeError = fmt.Errorf("unsupported tunnel type")
+var UnsupportedTunnelTypeError = net.UnknownNetworkError("unsupported tunnel type")
 
 type FullConn interface {
 	Conn

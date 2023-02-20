@@ -2,6 +2,7 @@ package obfs
 
 import (
 	"errors"
+	"fmt"
 	"github.com/mzz2017/softwind/netproxy"
 )
 
@@ -35,6 +36,21 @@ func NewDialer(nextDialer netproxy.Dialer, param *ObfsParam) (*Dialer, error) {
 
 func (d *Dialer) ObfsOverhead() int {
 	return d.constructor.Overhead
+}
+
+func (d *Dialer) Dial(network, addr string) (netproxy.Conn, error) {
+	magicNetwork, err := netproxy.ParseMagicNetwork(network)
+	if err != nil {
+		return nil, err
+	}
+	switch magicNetwork.Network {
+	case "tcp":
+		return d.DialTcp(addr)
+	case "udp":
+		return d.DialUdp(addr)
+	default:
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
+	}
 }
 
 func (d *Dialer) DialTcp(address string) (netproxy.Conn, error) {

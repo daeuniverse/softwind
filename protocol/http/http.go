@@ -2,6 +2,7 @@ package http
 
 import (
 	"crypto/tls"
+	"fmt"
 	"github.com/mzz2017/softwind/netproxy"
 	"net/url"
 	"strconv"
@@ -39,6 +40,21 @@ func NewHTTPProxy(u *url.URL, forward netproxy.Dialer) (netproxy.Dialer, error) 
 		}
 	}
 	return s, nil
+}
+
+func (s *HttpProxy) Dial(network, addr string) (netproxy.Conn, error) {
+	magicNetwork, err := netproxy.ParseMagicNetwork(network)
+	if err != nil {
+		return nil, err
+	}
+	switch magicNetwork.Network {
+	case "tcp":
+		return s.DialTcp(addr)
+	case "udp":
+		return s.DialUdp(addr)
+	default:
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
+	}
 }
 
 func (s *HttpProxy) DialUdp(addr string) (netproxy.PacketConn, error) {
