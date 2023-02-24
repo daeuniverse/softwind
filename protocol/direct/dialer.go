@@ -33,13 +33,13 @@ func (d *directDialer) dialUdp(addr string, mark int) (c netproxy.PacketConn, er
 			if err != nil {
 				return nil, err
 			}
-			return &directPacketConn{UDPConn: conn, FullCone: true}, nil
+			return &directPacketConn{UDPConn: conn, FullCone: true, dialTgt: addr}, nil
 		} else {
 			conn, err := net.Dial("udp", addr)
 			if err != nil {
 				return nil, err
 			}
-			return &directPacketConn{UDPConn: conn.(*net.UDPConn), FullCone: false}, nil
+			return &directPacketConn{UDPConn: conn.(*net.UDPConn), FullCone: false, dialTgt: addr}, nil
 		}
 
 	} else {
@@ -64,7 +64,7 @@ func (d *directDialer) dialUdp(addr string, mark int) (c netproxy.PacketConn, er
 		if err = syscall.SetsockoptInt(int(f.Fd()), syscall.SOL_SOCKET, syscall.SO_MARK, 0x800); err != nil {
 			return nil, err
 		}
-		return &directPacketConn{UDPConn: conn, FullCone: d.fullCone}, nil
+		return &directPacketConn{UDPConn: conn, FullCone: d.fullCone, dialTgt: addr}, nil
 	}
 }
 

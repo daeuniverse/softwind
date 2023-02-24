@@ -7,7 +7,9 @@ import (
 
 type directPacketConn struct {
 	*net.UDPConn
-	FullCone bool
+	FullCone      bool
+	dialTgt       string
+	cachedDialTgt netip.AddrPort
 }
 
 func (c *directPacketConn) ReadFrom(p []byte) (int, netip.AddrPort, error) {
@@ -39,4 +41,26 @@ func (c *directPacketConn) WriteToUDP(b []byte, addr *net.UDPAddr) (int, error) 
 		return c.Write(b)
 	}
 	return c.UDPConn.WriteToUDP(b, addr)
+}
+
+func (c *directPacketConn) Write(b []byte) (int, error) {
+	if !c.FullCone {
+		return c.UDPConn.Write(b)
+	}
+	if !c.cachedDialTgt.IsValid() {
+		ua, err := net.ResolveUDPAddr("udp", c.dialTgt)
+		if err != nil {
+			return 0, err
+		}
+		c.cachedDialTgt = ua.AddrPort()
+	}
+	return c.UDPConn.WriteToUDPAddrPort(b, c.cachedDialTgt)
+}
+
+func (c *directPacketConn) Read(b []byte) (int, error) {
+	if !c.FullCone {
+		return c.UDPConn.Read(b)
+	}
+	n, _, err := c.UDPConn.ReadFrom(b)
+	return n, err
 }
