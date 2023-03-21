@@ -62,8 +62,8 @@ func NetworkToByte(network string) byte {
 type Metadata struct {
 	protocol.Metadata
 
-	Network      string
-	authedCmdKey [16]byte
+	Network       string
+	authedCmdKey  [16]byte
 	authedEAuthID [16]byte
 }
 
@@ -118,15 +118,30 @@ func (m *Metadata) PutAddr(dst []byte) (n int) {
 }
 
 func (m *Metadata) CompleteFromInstructionData(instructionData []byte) (err error) {
+	if len(instructionData) < 41 {
+		return fmt.Errorf("bad req: insuffient data: expected at least 41 but got: %v", len(instructionData))
+	}
 	m.Type = ParseMetadataType(instructionData[40])
 	switch m.Type {
 	case protocol.MetadataTypeIPv4:
+		if len(instructionData) < 45 {
+			return fmt.Errorf("bad ipv4 req: insuffient data: expected 45 but got: %v", len(instructionData))
+		}
 		m.Hostname = net.IP(instructionData[41:45]).String()
 	case protocol.MetadataTypeIPv6:
+		if len(instructionData) < 57 {
+			return fmt.Errorf("bad ipv6 req: insuffient data: expected 57 but got: %v", len(instructionData))
+		}
 		m.Hostname = net.IP(instructionData[41:57]).String()
 	case protocol.MetadataTypeDomain:
-		m.Hostname = string(instructionData[42 : 42+instructionData[41]])
+		if len(instructionData) < 42+int(instructionData[41]) {
+			return fmt.Errorf("bad domain req: insuffient data: expected %v but got: %v", 42+int(instructionData[41]), len(instructionData))
+		}
+		m.Hostname = string(instructionData[42 : 42+int(instructionData[41])])
 	case protocol.MetadataTypeMsg:
+		if len(instructionData) < 42 {
+			return fmt.Errorf("bad msg req: insuffient data: expected 42 but got: %v", len(instructionData))
+		}
 		m.Cmd = protocol.MetadataCmd(instructionData[41])
 	default:
 		return fmt.Errorf("CompleteFromInstructionData: %w: invalid type: %v", ErrInvalidMetadata, instructionData[40])

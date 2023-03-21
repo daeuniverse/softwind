@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/vmess"
 	"io"
 	"net"
@@ -138,14 +137,7 @@ func (c *Conn) ReadReqHeader() (err error) {
 	if _, err = io.ReadFull(c.Conn, buf); err != nil {
 		return err
 	}
-	tmpMdata := vmess.Metadata{Metadata: protocol.Metadata{Type: vmess.ParseMetadataType(buf[3])}}
-	instData := pool.Get(4 + tmpMdata.AddrLen())
-	defer pool.Put(instData)
-	copy(instData, buf)
-	if _, err = io.ReadFull(c.Conn, instData[4:]); err != nil {
-		return err
-	}
-	if err = CompleteFromInstructionData(&c.metadata, instData); err != nil {
+	if err = CompleteMetadataFromReader(&c.metadata, buf, c.Conn); err != nil {
 		return err
 	}
 	return nil

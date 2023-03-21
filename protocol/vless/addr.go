@@ -3,26 +3,51 @@ package trojanc
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/vmess"
+	"io"
 	"net"
 )
 
-func CompleteFromInstructionData(m *vmess.Metadata, instructionData []byte) (err error) {
-	m.Type = vmess.ParseMetadataType(instructionData[3])
+func CompleteMetadataFromReader(m *vmess.Metadata, first4 []byte, r io.Reader) (err error) {
+	m.Type = vmess.ParseMetadataType(first4[3])
 	switch m.Type {
 	case protocol.MetadataTypeIPv4:
-		m.Hostname = net.IP(instructionData[4:8]).String()
+		buf := pool.Get(4)
+		defer buf.Put()
+		if _, err = io.ReadFull(r, buf); err != nil {
+			return err
+		}
+		m.Hostname = net.IP(buf).String()
 	case protocol.MetadataTypeIPv6:
-		m.Hostname = net.IP(instructionData[4:20]).String()
+		buf := pool.Get(16)
+		defer buf.Put()
+		if _, err = io.ReadFull(r, buf); err != nil {
+			return err
+		}
+		m.Hostname = net.IP(buf).String()
 	case protocol.MetadataTypeDomain:
-		m.Hostname = string(instructionData[5 : 5+instructionData[4]])
+		buf := pool.Get(1+255)
+		defer buf.Put()
+		if _, err = io.ReadFull(r, buf[:1]); err != nil {
+			return err
+		}
+		if _, err = io.ReadFull(r, buf[1:buf[0]]); err != nil {
+			return err
+		}
+		m.Hostname = string(buf[1 : 1+int(buf[0])])
 	case protocol.MetadataTypeMsg:
-		m.Cmd = protocol.MetadataCmd(instructionData[4])
+		buf := pool.Get(1)
+		defer buf.Put()
+		if _, err = io.ReadFull(r, buf); err != nil {
+			return err
+		}
+		m.Cmd = protocol.MetadataCmd(buf[0])
 	default:
-		return fmt.Errorf("CompleteFromInstructionData: %w: invalid type: %v", vmess.ErrInvalidMetadata, instructionData[3])
+		return fmt.Errorf("CompleteMetadataFromReader: %w: invalid type: %v", vmess.ErrInvalidMetadata, first4[3])
 	}
-	m.Port = binary.BigEndian.Uint16(instructionData[1:])
-	m.Network = vmess.ParseNetwork(instructionData[0])
+	m.Port = binary.BigEndian.Uint16(first4[1:])
+	m.Network = vmess.ParseNetwork(first4[0])
 	return nil
 }
