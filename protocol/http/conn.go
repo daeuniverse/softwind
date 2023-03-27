@@ -20,18 +20,92 @@ import (
 )
 
 type Conn struct {
-	netproxy.Conn
+	nextDialer netproxy.Dialer
+	conn       netproxy.Conn
 
 	proxy *HttpProxy
 	addr  string
 
-	chShakeFinished chan struct{}
-	muShake         sync.Mutex
+	chShakeFinished    chan struct{}
+	muShake            sync.Mutex
+	muFinishShakeFuncs sync.Mutex
+	finishShakeFuncs   []func(conn netproxy.Conn)
+
+	isH2 bool
 }
 
-func NewConn(c netproxy.Conn, proxy *HttpProxy, addr string) *Conn {
+func (c *Conn) SetDeadline(t time.Time) error {
+	c.muFinishShakeFuncs.Lock()
+	defer c.muFinishShakeFuncs.Unlock()
+	select {
+	case <-c.chShakeFinished:
+		if c.conn == nil {
+			return io.EOF
+		}
+		if c.isH2 {
+			return nil
+		}
+		return c.conn.SetDeadline(t)
+	default:
+		c.finishShakeFuncs = append(c.finishShakeFuncs, func(conn netproxy.Conn) {
+			if c.isH2 {
+				return
+			}
+			conn.SetDeadline(t)
+		})
+		return nil
+	}
+}
+
+func (c *Conn) SetReadDeadline(t time.Time) error {
+	c.muFinishShakeFuncs.Lock()
+	defer c.muFinishShakeFuncs.Unlock()
+	select {
+	case <-c.chShakeFinished:
+		if c.conn == nil {
+			return io.EOF
+		}
+		if c.isH2 {
+			return nil
+		}
+		return c.conn.SetReadDeadline(t)
+	default:
+		c.finishShakeFuncs = append(c.finishShakeFuncs, func(conn netproxy.Conn) {
+			if c.isH2 {
+				return
+			}
+			conn.SetReadDeadline(t)
+		})
+		return nil
+	}
+}
+
+func (c *Conn) SetWriteDeadline(t time.Time) error {
+	c.muFinishShakeFuncs.Lock()
+	defer c.muFinishShakeFuncs.Unlock()
+	select {
+	case <-c.chShakeFinished:
+		if c.conn == nil {
+			return io.EOF
+		}
+		if c.isH2 {
+			return nil
+		}
+		return c.conn.SetWriteDeadline(t)
+	default:
+		c.finishShakeFuncs = append(c.finishShakeFuncs, func(conn netproxy.Conn) {
+			if c.isH2 {
+				return
+			}
+			conn.SetWriteDeadline(t)
+		})
+		return nil
+	}
+}
+
+func NewConn(nextDialer netproxy.Dialer, proxy *HttpProxy, addr string) *Conn {
 	return &Conn{
-		Conn:            c,
+		nextDialer:      nextDialer,
 		proxy:           proxy,
 		addr:            addr,
 		chShakeFinished: make(chan struct{}),
@@ -40,19 +114,31 @@ func NewConn(c netproxy.Conn, proxy *HttpProxy, addr string) *Conn {
 
 func (c *Conn) Write(b []byte) (n int, err error) {
 	c.muShake.Lock()
+	defer c.muShake.Unlock()
+	defer func() {
+		if err == nil {
+			c.muFinishShakeFuncs.Lock()
+			defer c.muFinishShakeFuncs.Unlock()
+			// SetDeadline after c.conn filled.
+			for _, f := range c.finishShakeFuncs {
+				f(c.conn)
+			}
+		}
+	}()
 	select {
 	case <-c.chShakeFinished:
-		c.muShake.Unlock()
-		return c.Conn.Write(b)
+		if c.conn == nil {
+			return 0, io.EOF
+		}
+		return c.conn.Write(b)
 	default:
 		// Handshake
-		defer c.muShake.Unlock()
 		defer close(c.chShakeFinished)
 		_, firstLine, _ := bufio.ScanLines(b, true)
 		isHttpReq := regexp.MustCompile(`^\S+ \S+ HTTP/[\d.]+$`).Match(firstLine)
 
 		var req *http.Request
-		if isHttpReq {
+		if isHttpReq && !c.proxy.https {
 			// HTTP Request
 
 			req, err = http.ReadRequest(bufio.NewReader(bytes.NewReader(b)))
@@ -92,16 +178,8 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			req.Header.Del("Proxy-Connection")
 		}
 
-		nextProto := ""
-		if tlsConn, ok := c.Conn.(*tls.Conn); ok {
-			if err := tlsConn.Handshake(); err != nil {
-				return 0, err
-			}
-			nextProto = tlsConn.ConnectionState().NegotiatedProtocol
-		}
-
-		connectHttp1 := func() (n int, err error) {
-			err = req.WriteProxy(c.Conn)
+		connectHttp1 := func(rawConn netproxy.Conn) (n int, err error) {
+			err = req.WriteProxy(rawConn)
 			if err != nil {
 				return 0, err
 			}
@@ -111,7 +189,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 				return len(b), nil
 			} else {
 				// We should read tcp connection here, and we will be guaranteed higher priority by chShakeFinished.
-				resp, err := http.ReadResponse(bufio.NewReader(c.Conn), req)
+				resp, err := http.ReadResponse(bufio.NewReader(rawConn), req)
 				if err != nil {
 					if resp != nil {
 						resp.Body.Close()
@@ -123,12 +201,12 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 					err = fmt.Errorf("connect server using proxy error, StatusCode [%d]", resp.StatusCode)
 					return 0, err
 				}
-				return c.Conn.Write(b)
+				return rawConn.Write(b)
 			}
 		}
 
 		// Thanks to v2fly/v2ray-core.
-		connectHttp2 := func(h2clientConn *http2.ClientConn) (conn netproxy.Conn, n int, err error) {
+		connectHttp2 := func(rawConn netproxy.Conn, h2clientConn *http2.ClientConn, req *http.Request) (conn *http2Conn, n int, err error) {
 			pr, pw := io.Pipe()
 			req.Body = pr
 
@@ -154,91 +232,56 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 				return nil, 0, fmt.Errorf("proxy responded with non 200 code: %v", resp.Status)
 			}
 			return newHTTP2Conn(&netproxy.FakeNetConn{
-				Conn: c.Conn,
+				Conn: rawConn,
 			}, pw, resp.Body), len(b), nil
 		}
 
-		switch nextProto {
-		case "", "http/1.1":
-			return connectHttp1()
-		case "h2":
-			onceBackground.Do(func() {
-				h2ConnsPool = make(map[string]*lockedList)
-				go func() {
-					for range time.Tick(5 * time.Second) {
-						cachedH2Mutex.Lock()
-						for k := range h2ConnsPool {
-							h2ConnsPool[k].mu.Lock()
-							for p := h2ConnsPool[k].l.Front(); p != nil; p = p.Next() {
-								c := p.Value.(*http2.ClientConn)
-								if c.State().Closed {
-									h2ConnsPool[k].l.Remove(p)
-								}
-							}
-							h2ConnsPool[k].mu.Unlock()
-						}
-						cachedH2Mutex.Unlock()
-					}
-				}()
-			})
-			cachedH2Mutex.Lock()
-			cachedConns, cachedConnsFound := h2ConnsPool[c.proxy.Host]
-			cachedH2Mutex.Unlock()
-
-			if cachedConnsFound {
-				cachedConns.mu.Lock()
-				if cachedConns.l.Len() > 0 {
-					for p := cachedConns.l.Front(); p != nil; p = p.Next() {
-						conn := p.Value.(*http2.ClientConn)
-						if conn.CanTakeNewRequest() {
-							proxyConn, n, err := connectHttp2(conn)
-							if err != nil {
-								cachedConns.mu.Unlock()
-								return 0, err
-							}
-							c.Conn = proxyConn
-							cachedConns.mu.Unlock()
-							return n, nil
-						}
-					}
-				}
-				cachedConns.mu.Unlock()
-			}
-
-			t := http2.Transport{}
-			h2clientConn, err := t.NewClientConn(&netproxy.FakeNetConn{
-				Conn: c.Conn,
-			})
+		if !c.proxy.https {
+			conn, err := c.nextDialer.DialTcp(c.proxy.Host)
 			if err != nil {
 				return 0, err
 			}
+			c.conn = conn
+			return connectHttp1(conn)
+		}
 
-			proxyConn, n, err := connectHttp2(h2clientConn)
+		rawConn, h2Conn, err := connPool.GetConn(c.nextDialer, c.proxy.Host)
+		if err != nil {
+			return 0, err
+		}
+		if h2Conn != nil {
+			proxyConn, n, err := connectHttp2(rawConn, h2Conn, req)
 			if err != nil {
 				return 0, err
 			}
-
-			cachedH2Mutex.Lock()
-			if h2ConnsPool[c.proxy.Host] == nil {
-				h2ConnsPool[c.proxy.Host] = newLockedList()
-			}
-			h2ConnsPool[c.proxy.Host].l.PushFront(h2clientConn)
-			cachedH2Mutex.Unlock()
-
-			c.Conn = proxyConn
+			c.conn = proxyConn
+			c.isH2 = true
 			return n, nil
-		default:
-			return 0, fmt.Errorf("negotiated unsupported application layer protocol: %v", nextProto)
+		} else {
+			conn, err := c.nextDialer.DialTcp(c.proxy.Host)
+			if err != nil {
+				return 0, err
+			}
+			c.conn = conn
+			return connectHttp1(conn)
 		}
 	}
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
 	<-c.chShakeFinished
-	return c.Conn.Read(b)
+	if c.conn == nil {
+		return 0, io.EOF
+	}
+	return c.conn.Read(b)
 }
 
-func newHTTP2Conn(c net.Conn, pipedReqBody *io.PipeWriter, respBody io.ReadCloser) net.Conn {
+func (c *Conn) Close() error {
+	// Do not close underlay conn because it has been managed by background go routine.
+	return nil
+}
+
+func newHTTP2Conn(c net.Conn, pipedReqBody *io.PipeWriter, respBody io.ReadCloser) *http2Conn {
 	return &http2Conn{Conn: c, in: pipedReqBody, out: respBody}
 }
 
@@ -261,6 +304,12 @@ func (h *http2Conn) Close() error {
 	return h.out.Close()
 }
 
+type h2Conn struct {
+	lastAccess time.Time
+	rawConn    netproxy.Conn
+	h2Conn     *http2.ClientConn
+}
+
 type lockedList struct {
 	l  *list.List
 	mu sync.Mutex
@@ -273,8 +322,128 @@ func newLockedList() *lockedList {
 	}
 }
 
-var (
-	cachedH2Mutex  sync.Mutex
-	h2ConnsPool    map[string]*lockedList
-	onceBackground sync.Once
-)
+type poolIdent struct {
+	ele  *list.Element
+	addr string
+}
+type h2ConnsPool struct {
+	mu           sync.Mutex
+	h2ConnsPool  map[string]*lockedList
+	h2Conn2Ident map[*http2.ClientConn]*poolIdent
+	addr2Dialer  sync.Map
+}
+
+func newH2ConnsPool() *h2ConnsPool {
+	return &h2ConnsPool{
+		mu:           sync.Mutex{},
+		h2ConnsPool:  make(map[string]*lockedList),
+		h2Conn2Ident: make(map[*http2.ClientConn]*poolIdent),
+	}
+}
+
+func (p *h2ConnsPool) registerAddrToDialerMapping(addr string, dialer netproxy.Dialer) {
+	p.addr2Dialer.Store(addr, dialer)
+}
+
+func (p *h2ConnsPool) GetUnderlayConn(c *http2.ClientConn) (netproxy.Conn, error) {
+	p.mu.Lock()
+	ident, ok := p.h2Conn2Ident[c]
+	p.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("GetUnderlayConn: not found")
+	}
+	return ident.ele.Value.(*h2Conn).rawConn, nil
+}
+
+func (p *h2ConnsPool) GetConn(nextDialer netproxy.Dialer, addr string) (netproxy.Conn, *http2.ClientConn, error) {
+	p.mu.Lock()
+	if p.h2ConnsPool[addr] == nil {
+		p.h2ConnsPool[addr] = newLockedList()
+	}
+	conns, cachedConnsFound := p.h2ConnsPool[addr]
+	p.mu.Unlock()
+
+	if cachedConnsFound {
+		conns.mu.Lock()
+		if conns.l.Len() > 0 {
+			for p := conns.l.Front(); p != nil; p = p.Next() {
+				h2Conn := p.Value.(*h2Conn)
+				if h2Conn.h2Conn.CanTakeNewRequest() {
+					conns.mu.Unlock()
+					return h2Conn.rawConn, h2Conn.h2Conn, nil
+				}
+			}
+		}
+		conns.mu.Unlock()
+	}
+
+	// New.
+	rawConn, err := nextDialer.DialTcp(addr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("h2ConnsPool.GetClientConn: %w", err)
+	}
+	nextProto := ""
+	if tlsConn, ok := rawConn.(*tls.Conn); ok {
+		if err := tlsConn.Handshake(); err != nil {
+			return nil, nil, err
+		}
+		nextProto = tlsConn.ConnectionState().NegotiatedProtocol
+	}
+
+	switch nextProto {
+	case "", "http/1.1":
+		return rawConn, nil, nil
+	case "h2":
+		t := http2.Transport{
+			ConnPool: p,
+		}
+		h2clientConn, err := t.NewClientConn(&netproxy.FakeNetConn{
+			Conn: rawConn,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		conns.mu.Lock()
+		ele := conns.l.PushFront(&h2Conn{
+			rawConn: rawConn,
+			h2Conn:  h2clientConn,
+		})
+		conns.mu.Unlock()
+		p.mu.Lock()
+		p.h2Conn2Ident[h2clientConn] = &poolIdent{
+			ele:  ele,
+			addr: addr,
+		}
+		p.mu.Unlock()
+		p.registerAddrToDialerMapping(addr, nextDialer)
+		return rawConn, h2clientConn, nil
+	default:
+		return nil, nil, fmt.Errorf("negotiated unsupported application layer protocol: %v", nextProto)
+	}
+}
+
+func (p *h2ConnsPool) GetClientConn(req *http.Request, addr string) (*http2.ClientConn, error) {
+	d, ok := p.addr2Dialer.Load(addr)
+	if !ok {
+		return nil, fmt.Errorf("no valid dialer for h2ConnsPool.GetClientConn")
+	}
+	_, h2Conn, err := p.GetConn(d.(netproxy.Dialer), addr)
+	return h2Conn, err
+}
+
+func (p *h2ConnsPool) MarkDead(h2c *http2.ClientConn) {
+	p.mu.Lock()
+	ident, ok := p.h2Conn2Ident[h2c]
+	if !ok {
+		p.mu.Unlock()
+		return
+	}
+	conns := p.h2ConnsPool[ident.addr]
+	delete(p.h2Conn2Ident, h2c)
+	p.mu.Unlock()
+	conns.mu.Lock()
+	conns.l.Remove(ident.ele)
+	conns.mu.Unlock()
+}
+
+var connPool = newH2ConnsPool()
