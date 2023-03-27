@@ -62,7 +62,7 @@ func (s *HttpProxy) DialUdp(addr string) (netproxy.PacketConn, error) {
 }
 
 func (s *HttpProxy) DialTcp(addr string) (netproxy.Conn, error) {
-	// DialTcp and create the https client connection.
+	// DialTcp and create the http(s) client connection.
 	c, err := s.dialer.DialTcp(s.Host)
 	if err != nil {
 		return nil, err
