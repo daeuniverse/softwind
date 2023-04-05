@@ -21,7 +21,9 @@ func (c *Conn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {
 	if _, err = io.ReadFull(c, buf[1:]); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-	m.Unpack(buf)
+	if _, err = m.Unpack(buf); err != nil {
+		return 0, netip.AddrPort{}, err
+	}
 
 	if addr, err = m.AddrPort(); err != nil {
 		return 0, netip.AddrPort{}, err

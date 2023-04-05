@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/mzz2017/softwind/protocol"
+	"io"
 	"net"
 )
 
@@ -107,26 +108,41 @@ func (m *Metadata) PackTo(dst []byte) (n int) {
 	}
 }
 
-func (m *Metadata) Unpack(src []byte) (n int) {
+func (m *Metadata) Unpack(src []byte) (n int, err error) {
+	if len(src) < 1 {
+		return 0, io.ErrUnexpectedEOF
+	}
 	m.Type = ParseMetadataType(src[0])
 	switch m.Type {
 	case protocol.MetadataTypeIPv4:
+		if len(src) < 7 {
+			return 0, io.ErrUnexpectedEOF
+		}
 		m.Hostname = net.IP(src[1:5]).String()
 		m.Port = binary.BigEndian.Uint16(src[5:])
-		return 7
+		return 7, nil
 	case protocol.MetadataTypeIPv6:
+		if len(src) < 19 {
+			return 0, io.ErrUnexpectedEOF
+		}
 		m.Hostname = net.IP(src[1:17]).String()
 		m.Port = binary.BigEndian.Uint16(src[17:])
-		return 19
+		return 19, nil
 	case protocol.MetadataTypeDomain:
+		if len(src) < 2 || len(src) < 4+int(src[1]) {
+			return 0, io.ErrUnexpectedEOF
+		}
 		m.Hostname = net.IP(src[1:17]).String()
 		m.Hostname = string(src[2 : 2+src[1]])
 		m.Port = binary.BigEndian.Uint16(src[2+src[1]:])
-		return 4 + int(src[1])
+		return 4 + int(src[1]), nil
 	case protocol.MetadataTypeMsg:
+		if len(src) < 2 {
+			return 0, io.ErrUnexpectedEOF
+		}
 		m.Cmd = protocol.MetadataCmd(src[1])
-		return 2
+		return 2, nil
 	default:
-		return 0
+		return 0, fmt.Errorf("unexpected metadata type: %v", m.Type)
 	}
 }

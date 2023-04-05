@@ -123,6 +123,8 @@ func (c *Conn) ReadReqHeader() (err error) {
 	if _, err = io.ReadFull(c.Conn, buf[1:]); err != nil {
 		return err
 	}
-	c.metadata.Unpack(buf)
+	if _, err = c.metadata.Unpack(buf); err != nil {
+		return err
+	}
 	return nil
 }
