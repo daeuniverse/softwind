@@ -89,20 +89,8 @@ func NewTCPConn(conn netproxy.Conn, metadata protocol.Metadata, masterKey []byte
 	if metadata.IsClient {
 		time.AfterFunc(100*time.Millisecond, func() {
 			// avoid the situation where the server sends messages first
-			c.writeMutex.Lock()
-			defer c.writeMutex.Unlock()
-			if !c.onceWrite {
-				buf, offset, toWrite, err := c.initWriteFromPool(nil)
-				if err != nil {
-					return
-				}
-				defer pool.Put(buf)
-				defer pool.Put(toWrite)
-				buf = c.seal(buf[offset:], toWrite)
-				if _, err = c.Conn.Write(buf); err != nil {
-					return
-				}
-				c.onceWrite = true
+			if _, err = c.Write(nil); err != nil {
+				return
 			}
 		})
 	}

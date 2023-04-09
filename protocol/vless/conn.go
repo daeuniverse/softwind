@@ -50,18 +50,11 @@ func NewConn(conn netproxy.Conn, metadata vmess.Metadata, cmdKey []byte) (c *Con
 		}
 		c.cachedProxyAddrIpIP = proxyAddrIp.AddrPort()
 	}
-	if metadata.IsClient {
+	if metadata.Network == "tcp" && metadata.IsClient {
 		time.AfterFunc(100*time.Millisecond, func() {
 			// avoid the situation where the server sends messages first
-			c.writeMutex.Lock()
-			defer c.writeMutex.Unlock()
-			if !c.onceWrite {
-				buf := c.reqHeaderFromPool(nil)
-				defer pool.Put(buf)
-				if _, err = c.Conn.Write(buf); err != nil {
-					return
-				}
-				c.onceWrite = true
+			if _, err = c.Write(nil); err != nil {
+				return
 			}
 		})
 	}
