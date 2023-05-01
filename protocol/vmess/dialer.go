@@ -90,7 +90,7 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 		}
 		mdata.Cipher = d.metadata.Cipher
 		mdata.IsClient = d.metadata.IsClient
-		if d.featurePacketAddr && network == "udp" {
+		if d.featurePacketAddr && magicNetwork.Network == "udp" {
 			mdata.Hostname = SeqPacketMagicAddress
 			mdata.Type = protocol.MetadataTypeDomain
 		}
@@ -109,9 +109,9 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 
 		return NewConn(conn, Metadata{
 			Metadata: mdata,
-			Network:  network,
+			Network:  magicNetwork.Network,
 		}, addr, d.key)
 	default:
-		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, magicNetwork.Network)
 	}
 }

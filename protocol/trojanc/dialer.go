@@ -60,11 +60,20 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 			return nil, err
 		}
 
-		return NewConn(conn, Metadata{
+		tcpConn, err := NewConn(conn, Metadata{
 			Metadata: mdata,
-			Network:  network,
+			Network:  magicNetwork.Network,
 		}, d.password)
+		if err != nil {
+			return nil, err
+		}
+		if magicNetwork.Network == "tcp" {
+			return tcpConn, nil
+		} else {
+			return &PacketConn{Conn: tcpConn}, nil
+		}
+
 	default:
-		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, magicNetwork.Network)
 	}
 }

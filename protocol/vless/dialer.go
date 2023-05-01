@@ -67,9 +67,9 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 
 		return NewConn(conn, vmess.Metadata{
 			Metadata: mdata,
-			Network:  network,
+			Network:  magicNetwork.Network,
 		}, d.key)
 	default:
-		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
+		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, magicNetwork.Network)
 	}
 }
