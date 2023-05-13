@@ -28,61 +28,57 @@ func (s *Socks5) Dial(network, addr string) (netproxy.Conn, error) {
 	}
 	switch magicNetwork.Network {
 	case "tcp":
-		return s.DialTcp(addr)
+		c, err := s.dialer.Dial(network, s.addr)
+		if err != nil {
+			return nil, fmt.Errorf("[socks5]: dial to %s error: %w", s.addr, err)
+		}
+		if _, err := s.connect(c, addr, socks.CmdConnect); err != nil {
+			c.Close()
+			return nil, err
+		}
+		return c, nil
 	case "udp":
-		return s.DialUdp(addr)
+		tcpNetwork := netproxy.MagicNetwork{
+			Network: "udp",
+			Mark:    magicNetwork.Mark,
+		}.Encode()
+		c, err := s.dialer.Dial(tcpNetwork, s.addr)
+		if err != nil {
+			return nil, fmt.Errorf("[socks5]: dial to %s error: %w", s.addr, err)
+		}
+
+		// Get the proxy addr we should dial.
+		var uAddr socks.Addr
+		if uAddr, err = s.connect(c, addr, socks.CmdUDPAssociate); err != nil {
+			c.Close()
+			return nil, err
+		}
+
+		buf := pool.Get(socks.MaxAddrLen)
+		defer pool.Put(buf)
+
+		uAddress := uAddr.String()
+		h, p, _ := net.SplitHostPort(uAddress)
+		// if returned bind ip is unspecified
+		if ip, err := netip.ParseAddr(h); err == nil && ip.IsUnspecified() {
+			// indicate using conventional addr
+			h, _, _ = net.SplitHostPort(s.addr)
+			uAddress = net.JoinHostPort(h, p)
+		}
+
+		conn, err := s.dialer.Dial(network, uAddress)
+		if err != nil {
+			return nil, fmt.Errorf("[socks5] dialudp to %s error: %w", uAddress, err)
+		}
+		pc, ok := conn.(netproxy.PacketConn)
+		if !ok {
+			return nil, fmt.Errorf("[socks5] forwarder is not transport.PacketConn")
+		}
+
+		return NewPktConn(pc, uAddress, addr, c), nil
 	default:
 		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
 	}
-}
-
-func (s *Socks5) DialTcp(addr string) (netproxy.Conn, error) {
-	c, err := s.dialer.DialTcp(s.addr)
-	if err != nil {
-		return nil, fmt.Errorf("[socks5]: dial to %s error: %w", s.addr, err)
-	}
-	if _, err := s.connect(c, addr, socks.CmdConnect); err != nil {
-		c.Close()
-		return nil, err
-	}
-	return c, nil
-}
-
-func (s *Socks5) DialUdp(addr string) (netproxy.PacketConn, error) {
-	c, err := s.dialer.DialTcp(s.addr)
-	if err != nil {
-		return nil, fmt.Errorf("[socks5]: dial to %s error: %w", s.addr, err)
-	}
-
-	// Get the proxy addr we should dial.
-	var uAddr socks.Addr
-	if uAddr, err = s.connect(c, addr, socks.CmdUDPAssociate); err != nil {
-		c.Close()
-		return nil, err
-	}
-
-	buf := pool.Get(socks.MaxAddrLen)
-	defer pool.Put(buf)
-
-	uAddress := uAddr.String()
-	h, p, _ := net.SplitHostPort(uAddress)
-	// if returned bind ip is unspecified
-	if ip, err := netip.ParseAddr(h); err == nil && ip.IsUnspecified() {
-		// indicate using conventional addr
-		h, _, _ = net.SplitHostPort(s.addr)
-		uAddress = net.JoinHostPort(h, p)
-	}
-
-	conn, err := s.dialer.DialUdp(uAddress)
-	if err != nil {
-		return nil, fmt.Errorf("[socks5] dialudp to %s error: %w", uAddress, err)
-	}
-	pc, ok := conn.(netproxy.PacketConn)
-	if !ok {
-		return nil, fmt.Errorf("[socks5] forwarder is not transport.PacketConn")
-	}
-
-	return NewPktConn(pc, uAddress, addr, c), nil
 }
 
 // connect takes an existing connection to a socks5 proxy server,

@@ -45,40 +45,52 @@ func (d *Dialer) Dial(network, addr string) (netproxy.Conn, error) {
 	}
 	switch magicNetwork.Network {
 	case "tcp":
-		return d.DialTcp(addr)
+		target, err := socks.ParseAddr(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		conn, err := d.DialTcpTransport(network)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := conn.Write(target); err != nil {
+			conn.Close()
+			return nil, err
+		}
+		return conn, err
 	case "udp":
-		return d.DialUdp(addr)
+		var target socks.Addr
+		if addr != TransportMagicAddr {
+			target, err = socks.ParseAddr(addr)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		ciph, err := ciphers.NewStreamCipher(d.EncryptMethod, d.EncryptPassword)
+		if err != nil {
+			return nil, err
+		}
+
+		c, err := d.nextDialer.Dial(network, d.addr)
+		if err != nil {
+			return nil, fmt.Errorf("dial to %v error: %w", d.addr, err)
+		}
+		return NewUdpConn(c.(netproxy.PacketConn), ciph, target, d.addr), nil
 	default:
 		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
 	}
 }
 
-// DialTcp connects to the address addr on the network net via the proxy.
-func (d *Dialer) DialTcp(addr string) (netproxy.Conn, error) {
-	target, err := socks.ParseAddr(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := d.DialTcpTransport()
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := conn.Write(target); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return conn, err
-}
-
-func (d *Dialer) DialTcpTransport() (netproxy.Conn, error) {
+func (d *Dialer) DialTcpTransport(magicNetwork string) (netproxy.Conn, error) {
 	ciph, err := ciphers.NewStreamCipher(d.EncryptMethod, d.EncryptPassword)
 	if err != nil {
 		return nil, err
 	}
 
-	c, err := d.nextDialer.DialTcp(d.addr)
+	c, err := d.nextDialer.Dial(magicNetwork, d.addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial to %v error: %w", d.addr, err)
 	}
@@ -88,30 +100,8 @@ func (d *Dialer) DialTcpTransport() (netproxy.Conn, error) {
 	return conn, err
 }
 
-// DialUdp connects to the given address via the proxy.
-func (d *Dialer) DialUdp(addr string) (c netproxy.PacketConn, err error) {
-	var target socks.Addr
-	if addr != TransportMagicAddr {
-		target, err = socks.ParseAddr(addr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	ciph, err := ciphers.NewStreamCipher(d.EncryptMethod, d.EncryptPassword)
-	if err != nil {
-		return nil, err
-	}
-
-	c, err = d.nextDialer.DialUdp(d.addr)
-	if err != nil {
-		return nil, fmt.Errorf("dial to %v error: %w", d.addr, err)
-	}
-	return NewUdpConn(c, ciph, target, d.addr), nil
-}
-
-func (d *Dialer) DialUdpTransport() (netproxy.PacketConn, error) {
-	conn, err := d.DialUdp(TransportMagicAddr)
+func (d *Dialer) DialUdpTransport(magicNetwork string) (netproxy.PacketConn, error) {
+	conn, err := d.Dial(magicNetwork, TransportMagicAddr)
 	if err != nil {
 		return nil, err
 	}

@@ -23,8 +23,9 @@ type Conn struct {
 	nextDialer netproxy.Dialer
 	conn       netproxy.Conn
 
-	proxy *HttpProxy
-	addr  string
+	proxy        *HttpProxy
+	magicNetwork string
+	addr         string
 
 	chShakeFinished    chan struct{}
 	muShake            sync.Mutex
@@ -103,11 +104,12 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 	}
 }
 
-func NewConn(nextDialer netproxy.Dialer, proxy *HttpProxy, addr string) *Conn {
+func NewConn(nextDialer netproxy.Dialer, proxy *HttpProxy, addr string, network string) *Conn {
 	return &Conn{
 		nextDialer:      nextDialer,
 		proxy:           proxy,
 		addr:            addr,
+		magicNetwork:    network,
 		chShakeFinished: make(chan struct{}),
 	}
 }
@@ -237,7 +239,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		}
 
 		if !c.proxy.https {
-			conn, err := c.nextDialer.DialTcp(c.proxy.Host)
+			conn, err := c.nextDialer.Dial(c.magicNetwork, c.proxy.Host)
 			if err != nil {
 				return 0, err
 			}
@@ -245,7 +247,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			return connectHttp1(conn)
 		}
 
-		rawConn, h2Conn, err := connPool.GetConn(c.nextDialer, c.proxy.Host)
+		rawConn, h2Conn, err := connPool.GetConn(c.nextDialer, c.proxy.Host, c.magicNetwork)
 		if err != nil {
 			return 0, err
 		}
@@ -258,7 +260,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			c.isH2 = true
 			return n, nil
 		} else {
-			conn, err := c.nextDialer.DialTcp(c.proxy.Host)
+			conn, err := c.nextDialer.Dial(c.magicNetwork, c.proxy.Host)
 			if err != nil {
 				return 0, err
 			}
@@ -331,6 +333,7 @@ type h2ConnsPool struct {
 	h2ConnsPool  map[string]*lockedList
 	h2Conn2Ident map[*http2.ClientConn]*poolIdent
 	addr2Dialer  sync.Map
+	addr2Somark  sync.Map
 }
 
 func newH2ConnsPool() *h2ConnsPool {
@@ -338,11 +341,15 @@ func newH2ConnsPool() *h2ConnsPool {
 		mu:           sync.Mutex{},
 		h2ConnsPool:  make(map[string]*lockedList),
 		h2Conn2Ident: make(map[*http2.ClientConn]*poolIdent),
+		addr2Dialer:  sync.Map{},
 	}
 }
 
 func (p *h2ConnsPool) registerAddrToDialerMapping(addr string, dialer netproxy.Dialer) {
 	p.addr2Dialer.Store(addr, dialer)
+}
+func (p *h2ConnsPool) registerAddrToMagicNetworkMapping(addr string, magicNetwork string) {
+	p.addr2Somark.Store(addr, magicNetwork)
 }
 
 func (p *h2ConnsPool) GetUnderlayConn(c *http2.ClientConn) (netproxy.Conn, error) {
@@ -355,7 +362,7 @@ func (p *h2ConnsPool) GetUnderlayConn(c *http2.ClientConn) (netproxy.Conn, error
 	return ident.ele.Value.(*h2Conn).rawConn, nil
 }
 
-func (p *h2ConnsPool) GetConn(nextDialer netproxy.Dialer, addr string) (netproxy.Conn, *http2.ClientConn, error) {
+func (p *h2ConnsPool) GetConn(nextDialer netproxy.Dialer, addr string, magicNetwork string) (netproxy.Conn, *http2.ClientConn, error) {
 	p.mu.Lock()
 	if p.h2ConnsPool[addr] == nil {
 		p.h2ConnsPool[addr] = newLockedList()
@@ -378,7 +385,7 @@ func (p *h2ConnsPool) GetConn(nextDialer netproxy.Dialer, addr string) (netproxy
 	}
 
 	// New.
-	rawConn, err := nextDialer.DialTcp(addr)
+	rawConn, err := nextDialer.Dial(magicNetwork, addr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("h2ConnsPool.GetClientConn: %w", err)
 	}
@@ -416,6 +423,7 @@ func (p *h2ConnsPool) GetConn(nextDialer netproxy.Dialer, addr string) (netproxy
 		}
 		p.mu.Unlock()
 		p.registerAddrToDialerMapping(addr, nextDialer)
+		p.registerAddrToMagicNetworkMapping(addr, magicNetwork)
 		return rawConn, h2clientConn, nil
 	default:
 		return nil, nil, fmt.Errorf("negotiated unsupported application layer protocol: %v", nextProto)
@@ -427,7 +435,8 @@ func (p *h2ConnsPool) GetClientConn(req *http.Request, addr string) (*http2.Clie
 	if !ok {
 		return nil, fmt.Errorf("no valid dialer for h2ConnsPool.GetClientConn")
 	}
-	_, h2Conn, err := p.GetConn(d.(netproxy.Dialer), addr)
+	somark, _ := p.addr2Dialer.Load(addr)
+	_, h2Conn, err := p.GetConn(d.(netproxy.Dialer), addr, somark.(string))
 	return h2Conn, err
 }
 

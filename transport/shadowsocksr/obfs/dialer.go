@@ -45,34 +45,26 @@ func (d *Dialer) Dial(network, addr string) (netproxy.Conn, error) {
 	}
 	switch magicNetwork.Network {
 	case "tcp":
-		return d.DialTcp(addr)
+		conn, err := d.NextDialer.Dial(network, addr)
+		if err != nil {
+			return nil, err
+		}
+		obfs := d.constructor.New()
+		if obfs == nil {
+			return nil, errors.New("unsupported protocol type: " + d.param.Obfs)
+		}
+		obfsServerInfo := &ServerInfo{
+			Host:  d.param.ObfsHost,
+			Port:  d.param.ObfsPort,
+			Param: d.param.ObfsParam,
+		}
+		obfs.SetData(obfs.GetData())
+		obfs.SetServerInfo(obfsServerInfo)
+
+		return NewConn(conn, obfs)
 	case "udp":
-		return d.DialUdp(addr)
+		return d.NextDialer.Dial(network, addr)
 	default:
 		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
 	}
-}
-
-func (d *Dialer) DialTcp(address string) (netproxy.Conn, error) {
-	conn, err := d.NextDialer.DialTcp(address)
-	if err != nil {
-		return nil, err
-	}
-	obfs := d.constructor.New()
-	if obfs == nil {
-		return nil, errors.New("unsupported protocol type: " + d.param.Obfs)
-	}
-	obfsServerInfo := &ServerInfo{
-		Host:  d.param.ObfsHost,
-		Port:  d.param.ObfsPort,
-		Param: d.param.ObfsParam,
-	}
-	obfs.SetData(obfs.GetData())
-	obfs.SetServerInfo(obfsServerInfo)
-
-	return NewConn(conn, obfs)
-}
-
-func (d *Dialer) DialUdp(address string) (netproxy.PacketConn, error) {
-	return d.NextDialer.DialUdp(address)
 }

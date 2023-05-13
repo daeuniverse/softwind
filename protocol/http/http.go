@@ -11,8 +11,8 @@ import (
 
 // HttpProxy is an HTTP/HTTPS proxy.
 type HttpProxy struct {
-	https bool
-	Host  string
+	https    bool
+	Host     string
 	HaveAuth bool
 	Username string
 	Password string
@@ -55,18 +55,10 @@ func (s *HttpProxy) Dial(network, addr string) (netproxy.Conn, error) {
 	}
 	switch magicNetwork.Network {
 	case "tcp":
-		return s.DialTcp(addr)
+		return NewConn(s.dialer, s, addr, network), nil
 	case "udp":
-		return s.DialUdp(addr)
+		return nil, netproxy.UnsupportedTunnelTypeError
 	default:
 		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
 	}
-}
-
-func (s *HttpProxy) DialUdp(addr string) (netproxy.PacketConn, error) {
-	return nil, netproxy.UnsupportedTunnelTypeError
-}
-
-func (s *HttpProxy) DialTcp(addr string) (netproxy.Conn, error) {
-	return NewConn(s.dialer, s, addr), nil
 }

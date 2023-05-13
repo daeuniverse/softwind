@@ -39,42 +39,35 @@ func (d *Dialer) Dial(network, addr string) (netproxy.Conn, error) {
 	}
 	switch magicNetwork.Network {
 	case "tcp":
-		return d.DialTcp(addr)
+		mdata, err := protocol.ParseMetadata(addr)
+		if err != nil {
+			return nil, err
+		}
+		mdata.Cipher = d.metadata.Cipher
+		mdata.IsClient = d.metadata.IsClient
+
+		// Shadowsocks transfer TCP traffic via TCP tunnel.
+		conn, err := d.nextDialer.Dial(network, d.proxyAddress)
+		if err != nil {
+			return nil, err
+		}
+		return NewTCPConn(conn, mdata, d.key, nil)
 	case "udp":
-		return d.DialUdp(addr)
+		mdata, err := protocol.ParseMetadata(addr)
+		if err != nil {
+			return nil, err
+		}
+		mdata.Cipher = d.metadata.Cipher
+		mdata.IsClient = d.metadata.IsClient
+
+		// Shadowsocks transfer UDP traffic via UDP tunnel.
+		magicNetwork.Network = "udp"
+		conn, err := d.nextDialer.Dial(magicNetwork.Encode(), d.proxyAddress)
+		if err != nil {
+			return nil, err
+		}
+		return NewUdpConn(conn.(netproxy.PacketConn), d.proxyAddress, mdata, d.key, nil)
 	default:
 		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
 	}
-}
-
-func (d *Dialer) DialTcp(addr string) (c netproxy.Conn, err error) {
-	mdata, err := protocol.ParseMetadata(addr)
-	if err != nil {
-		return nil, err
-	}
-	mdata.Cipher = d.metadata.Cipher
-	mdata.IsClient = d.metadata.IsClient
-
-	// Shadowsocks transfer TCP traffic via TCP tunnel.
-	conn, err := d.nextDialer.DialTcp(d.proxyAddress)
-	if err != nil {
-		return nil, err
-	}
-	return NewTCPConn(conn, mdata, d.key, nil)
-}
-
-func (d *Dialer) DialUdp(addr string) (c netproxy.PacketConn, err error) {
-	mdata, err := protocol.ParseMetadata(addr)
-	if err != nil {
-		return nil, err
-	}
-	mdata.Cipher = d.metadata.Cipher
-	mdata.IsClient = d.metadata.IsClient
-
-	// Shadowsocks transfer UDP traffic via UDP tunnel.
-	conn, err := d.nextDialer.DialUdp(d.proxyAddress)
-	if err != nil {
-		return nil, err
-	}
-	return NewUdpConn(conn.(netproxy.PacketConn), d.proxyAddress, mdata, d.key, nil)
 }

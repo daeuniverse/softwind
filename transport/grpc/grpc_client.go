@@ -302,24 +302,20 @@ func (d *Dialer) Dial(network, address string) (netproxy.Conn, error) {
 	}
 	switch magicNetwork.Network {
 	case "tcp":
-		return d.DialTcp(address)
+		return d.DialContext(context.Background(), network, address)
 	case "udp":
-		return d.DialUdp(address)
+		return nil, fmt.Errorf("%w: udp", netproxy.UnsupportedTunnelTypeError)
 	default:
 		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
 	}
 }
 
-func (d *Dialer) DialTcp(address string) (netproxy.Conn, error) {
-	return d.DialContext(context.Background(), "tcp", address)
-}
-
-func (d *Dialer) DialUdp(address string) (netproxy.PacketConn, error) {
-	return nil, fmt.Errorf("%w: udp", netproxy.UnsupportedTunnelTypeError)
-}
-
 func (d *Dialer) DialContext(ctx context.Context, network string, address string) (netproxy.Conn, error) {
-	meta, cancel, err := getGrpcClientConn(ctx, d.NextDialer, d.ServerName, address, d.AllowInsecure)
+	magicNetwork, err := netproxy.ParseMagicNetwork(network)
+	if err != nil {
+		return nil, err
+	}
+	meta, cancel, err := getGrpcClientConn(ctx, d.NextDialer, d.ServerName, address, d.AllowInsecure, magicNetwork.Mark)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -341,7 +337,7 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 	return NewClientConn(tun, streamCloser), nil
 }
 
-func getGrpcClientConn(ctx context.Context, tcpDialer *netproxy.ContextDialer, serverName string, address string, allowInsecure bool) (*clientConnMeta, ccCanceller, error) {
+func getGrpcClientConn(ctx context.Context, tcpDialer *netproxy.ContextDialer, serverName string, address string, allowInsecure bool, somark uint32) (*clientConnMeta, ccCanceller, error) {
 	// allowInsecure?
 	var certOption grpc.DialOption
 	if allowInsecure {
@@ -381,7 +377,11 @@ func getGrpcClientConn(ctx context.Context, tcpDialer *netproxy.ContextDialer, s
 	meta.cc, err = grpc.DialContext(ctx, address,
 		certOption,
 		grpc.WithContextDialer(func(ctxGrpc context.Context, s string) (net.Conn, error) {
-			c, err := tcpDialer.DialTcpContext(ctxGrpc, s)
+			tcpNetwork := netproxy.MagicNetwork{
+				Network: "tcp",
+				Mark:    somark,
+			}.Encode()
+			c, err := tcpDialer.DialContext(ctxGrpc, tcpNetwork, s)
 			if err != nil {
 				return nil, err
 			}

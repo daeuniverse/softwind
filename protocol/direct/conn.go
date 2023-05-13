@@ -1,6 +1,7 @@
 package direct
 
 import (
+	"github.com/mzz2017/softwind/common"
 	"net"
 	"net/netip"
 )
@@ -10,6 +11,7 @@ type directPacketConn struct {
 	FullCone      bool
 	dialTgt       string
 	cachedDialTgt netip.AddrPort
+	resolver      *net.Resolver
 }
 
 func (c *directPacketConn) ReadFrom(p []byte) (int, netip.AddrPort, error) {
@@ -21,7 +23,8 @@ func (c *directPacketConn) WriteTo(b []byte, addr string) (int, error) {
 		// FIXME: check the addr
 		return c.Write(b)
 	}
-	uAddr, err := net.ResolveUDPAddr("udp", addr)
+
+	uAddr, err := common.ResolveUDPAddr(c.resolver, addr)
 	if err != nil {
 		return 0, err
 	}
@@ -48,7 +51,7 @@ func (c *directPacketConn) Write(b []byte) (int, error) {
 		return c.UDPConn.Write(b)
 	}
 	if !c.cachedDialTgt.IsValid() {
-		ua, err := net.ResolveUDPAddr("udp", c.dialTgt)
+		ua, err := common.ResolveUDPAddr(c.resolver, c.dialTgt)
 		if err != nil {
 			return 0, err
 		}

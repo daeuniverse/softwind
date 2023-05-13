@@ -1,6 +1,7 @@
 package direct
 
 import (
+	"context"
 	"fmt"
 	"github.com/mzz2017/softwind/netproxy"
 	"net"
@@ -21,12 +22,7 @@ func newDirectDialer(fullCone bool) netproxy.Dialer {
 	}
 }
 
-func (d *directDialer) DialUdp(addr string) (c netproxy.PacketConn, err error) {
-	return d.dialUdp(addr, 0)
-}
-
 func (d *directDialer) dialUdp(addr string, mark int) (c netproxy.PacketConn, err error) {
-
 	if mark == 0 {
 		if d.fullCone {
 			conn, err := net.ListenUDP("udp", nil)
@@ -50,7 +46,12 @@ func (d *directDialer) dialUdp(addr string, mark int) (c netproxy.PacketConn, er
 				return nil, err
 			}
 		} else {
-			c, err := net.Dial("udp", addr)
+			d := net.Dialer{
+				Control: func(network, address string, c syscall.RawConn) error {
+					return netproxy.SoMarkControl(c, mark)
+				},
+			}
+			c, err := d.Dial("udp", addr)
 			if err != nil {
 				return nil, err
 			}
@@ -61,16 +62,23 @@ func (d *directDialer) dialUdp(addr string, mark int) (c netproxy.PacketConn, er
 			return nil, err
 		}
 		defer f.Close()
-		if err = syscall.SetsockoptInt(int(f.Fd()), syscall.SOL_SOCKET, syscall.SO_MARK, 0x800); err != nil {
+		if err = syscall.SetsockoptInt(int(f.Fd()), syscall.SOL_SOCKET, syscall.SO_MARK, mark); err != nil {
 			return nil, err
 		}
-		return &directPacketConn{UDPConn: conn, FullCone: d.fullCone, dialTgt: addr}, nil
+		return &directPacketConn{UDPConn: conn, FullCone: d.fullCone, dialTgt: addr, resolver: &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{
+					Control: func(network, address string, c syscall.RawConn) error {
+						return netproxy.SoMarkControl(c, mark)
+					},
+				}
+				return d.DialContext(ctx, network, address)
+			},
+		}}, nil
 	}
 }
 
-func (d *directDialer) DialTcp(addr string) (c netproxy.Conn, err error) {
-	return d.dialTcp(addr, 0)
-}
 func (d *directDialer) dialTcp(addr string, mark int) (c netproxy.Conn, err error) {
 	if mark == 0 {
 		return net.Dial("tcp", addr)
@@ -78,6 +86,17 @@ func (d *directDialer) dialTcp(addr string, mark int) (c netproxy.Conn, err erro
 		dialer := net.Dialer{
 			Control: func(network, address string, c syscall.RawConn) error {
 				return netproxy.SoMarkControl(c, mark)
+			},
+			Resolver: &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					d := net.Dialer{
+						Control: func(network, address string, c syscall.RawConn) error {
+							return netproxy.SoMarkControl(c, mark)
+						},
+					}
+					return d.DialContext(ctx, network, address)
+				},
 			},
 		}
 		return dialer.Dial("tcp", addr)

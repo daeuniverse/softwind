@@ -47,70 +47,62 @@ func (d *Dialer) protocolFromInnerConn(conn netproxy.Conn, addr socks.Addr) (pro
 	}
 }
 
-func (d *Dialer) Dial(network, addr string) (netproxy.Conn, error) {
+func (d *Dialer) Dial(network, address string) (netproxy.Conn, error) {
 	magicNetwork, err := netproxy.ParseMagicNetwork(network)
 	if err != nil {
 		return nil, err
 	}
 	switch magicNetwork.Network {
 	case "tcp":
-		return d.DialTcp(addr)
+		addr, err := socks.ParseAddr(address)
+		if err != nil {
+			return nil, err
+		}
+
+		switch nextDialer := d.NextDialer.(type) {
+		case *shadowsocks_stream.Dialer:
+			transportConn, err := nextDialer.DialTcpTransport(network)
+			if err != nil {
+				return nil, err
+			}
+			proto, err := d.protocolFromInnerConn(transportConn, addr)
+			if err != nil {
+				return nil, err
+			}
+			conn, err := NewConn(transportConn, proto)
+			if err != nil {
+				return nil, err
+			}
+			if _, err = conn.Write(addr); err != nil {
+				return nil, fmt.Errorf("failed to write target: %w", err)
+			}
+			return conn, nil
+		default:
+			return nil, fmt.Errorf("unsupported next dialer: %T", d.NextDialer)
+		}
 	case "udp":
-		return d.DialUdp(addr)
+		addr, err := socks.ParseAddr(address)
+		if err != nil {
+			return nil, err
+		}
+
+		switch nextDialer := d.NextDialer.(type) {
+		case *shadowsocks_stream.Dialer:
+			c, err := nextDialer.DialUdpTransport(network)
+			if err != nil {
+				return nil, err
+			}
+
+			proto, err := d.protocolFromInnerConn(c, addr)
+			if err != nil {
+				return nil, err
+			}
+
+			return NewPacketConn(c, proto, address)
+		default:
+			return nil, fmt.Errorf("unsupported inner dialer: %T", nextDialer)
+		}
 	default:
 		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, network)
-	}
-}
-
-func (d *Dialer) DialTcp(address string) (conn netproxy.Conn, err error) {
-	addr, err := socks.ParseAddr(address)
-	if err != nil {
-		return nil, err
-	}
-
-	switch nextDialer := d.NextDialer.(type) {
-	case *shadowsocks_stream.Dialer:
-		conn, err = nextDialer.DialTcpTransport()
-		if err != nil {
-			return nil, err
-		}
-		proto, err := d.protocolFromInnerConn(conn, addr)
-		if err != nil {
-			return nil, err
-		}
-		conn, err = NewConn(conn, proto)
-		if err != nil {
-			return nil, err
-		}
-		if _, err = conn.Write(addr); err != nil {
-			return nil, fmt.Errorf("failed to write target: %w", err)
-		}
-		return conn, nil
-	default:
-		return nil, fmt.Errorf("unsupported next dialer: %T", d.NextDialer)
-	}
-}
-
-func (d *Dialer) DialUdp(address string) (netproxy.PacketConn, error) {
-	addr, err := socks.ParseAddr(address)
-	if err != nil {
-		return nil, err
-	}
-
-	switch nextDialer := d.NextDialer.(type) {
-	case *shadowsocks_stream.Dialer:
-		c, err := nextDialer.DialUdpTransport()
-		if err != nil {
-			return nil, err
-		}
-
-		proto, err := d.protocolFromInnerConn(c, addr)
-		if err != nil {
-			return nil, err
-		}
-
-		return NewPacketConn(c, proto, address)
-	default:
-		return nil, fmt.Errorf("unsupported inner dialer: %T", nextDialer)
 	}
 }

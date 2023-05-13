@@ -60,7 +60,11 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 		}
 		mdata.IsClient = d.metadata.IsClient
 
-		conn, err := d.nextDialer.DialTcp(d.proxyAddress)
+		tcpNetwork := netproxy.MagicNetwork{
+			Network: "tcp",
+			Mark:    magicNetwork.Mark,
+		}.Encode()
+		conn, err := d.nextDialer.Dial(tcpNetwork, d.proxyAddress)
 		if err != nil {
 			return nil, err
 		}
