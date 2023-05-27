@@ -4,13 +4,61 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/mzz2017/softwind/netproxy"
+	utls "github.com/refraction-networking/utls"
+	"net/url"
+	"strings"
 )
 
 // Tls is a base Tls struct
 type Tls struct {
-	NextDialer netproxy.Dialer
-	Addr       string
-	TlsConfig  *tls.Config
+	nextDialer      netproxy.Dialer
+	addr            string
+	serverName      string
+	skipVerify      bool
+	tlsImplentation string
+	utlsImitate     string
+	alpn            []string
+
+	tlsConfig *tls.Config
+}
+
+// NewTls returns a Tls infra.
+func NewTls(s string, d netproxy.Dialer) (*Tls, error) {
+	u, err := url.Parse(s)
+	if err != nil {
+		return nil, fmt.Errorf("NewTls: %w", err)
+	}
+
+	t := &Tls{
+		nextDialer:      d,
+		addr:            u.Host,
+		tlsImplentation: u.Scheme,
+	}
+
+	query := u.Query()
+	t.serverName = query.Get("sni")
+	t.utlsImitate = query.Get("utlsImitate")
+
+	// skipVerify
+	if query.Get("allowInsecure") == "true" || query.Get("allowInsecure") == "1" ||
+		query.Get("skipVerify") == "true" || query.Get("skipVerify") == "1" {
+		t.skipVerify = true
+	}
+	// alpn
+	if query.Has("alpn") {
+		// Set it not nil.
+		t.alpn = strings.Split(query.Get("alpn"), ",")
+	}
+	if t.serverName == "" {
+		t.serverName = u.Hostname()
+	}
+	t.tlsConfig = &tls.Config{
+		ServerName:         t.serverName,
+		InsecureSkipVerify: t.skipVerify,
+		NextProtos:         t.alpn,
+	}
+
+	return t, nil
 }
 
 func (s *Tls) Dial(network, addr string) (c netproxy.Conn, err error) {
@@ -20,16 +68,40 @@ func (s *Tls) Dial(network, addr string) (c netproxy.Conn, err error) {
 	}
 	switch magicNetwork.Network {
 	case "tcp":
-		rc, err := s.NextDialer.Dial(network, addr)
+		rc, err := s.nextDialer.Dial(network, addr)
 		if err != nil {
-			return nil, fmt.Errorf("[Tls]: dial to %s: %w", s.Addr, err)
+			return nil, fmt.Errorf("[Tls]: dial to %s: %w", s.addr, err)
 		}
 
-		tlsConn := tls.Client(&netproxy.FakeNetConn{
-			Conn:  rc,
-			LAddr: nil,
-			RAddr: nil,
-		}, s.TlsConfig)
+		var tlsConn interface {
+			netproxy.Conn
+			Handshake() error
+		}
+
+		switch s.tlsImplentation {
+		case "tls":
+			tlsConn = tls.Client(&netproxy.FakeNetConn{
+				Conn:  rc,
+				LAddr: nil,
+				RAddr: nil,
+			}, s.tlsConfig)
+
+		case "utls":
+			clientHelloID, err := nameToUtlsClientHelloID(s.utlsImitate)
+			if err != nil {
+				return nil, err
+			}
+
+			tlsConn = utls.UClient(&netproxy.FakeNetConn{
+				Conn:  rc,
+				LAddr: nil,
+				RAddr: nil,
+			}, uTLSConfigFromTLSConfig(s.tlsConfig), *clientHelloID)
+
+		default:
+			return nil, fmt.Errorf("unknown tls implementation: %v", s.tlsImplentation)
+		}
+
 		if err := tlsConn.Handshake(); err != nil {
 			return nil, err
 		}

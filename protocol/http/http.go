@@ -1,12 +1,10 @@
 package http
 
 import (
-	"crypto/tls"
 	"fmt"
 	"github.com/mzz2017/softwind/netproxy"
 	tls2 "github.com/mzz2017/softwind/transport/tls"
 	"net/url"
-	"strconv"
 )
 
 // HttpProxy is an HTTP/HTTPS proxy.
@@ -34,15 +32,25 @@ func NewHTTPProxy(u *url.URL, forward netproxy.Dialer) (netproxy.Dialer, error) 
 		if serverName == "" {
 			serverName = u.Hostname()
 		}
-		skipVerify, _ := strconv.ParseBool(u.Query().Get("allowInsecure"))
-		s.dialer = &tls2.Tls{
-			NextDialer: s.dialer,
-			Addr:       s.Host,
-			TlsConfig: &tls.Config{
-				NextProtos:         []string{"h2", "http/1.1"},
-				ServerName:         serverName,
-				InsecureSkipVerify: skipVerify,
-			},
+
+		tlsImplementation := "tls"
+		if u.Query().Has("tlsImplementation") {
+			tlsImplementation = u.Query().Get("tlsImplementation")
+		}
+		u := url.URL{
+			Scheme: tlsImplementation,
+			Host:   s.Host,
+			RawQuery: url.Values{
+				"sni":           []string{serverName},
+				"allowInsecure": []string{u.Query().Get("allowInsecure")},
+				"utlsImitate":   []string{u.Query().Get("utlsImitate")},
+				"alpn":          []string{"h2", "http/1.1"},
+			}.Encode(),
+		}
+		var err error
+		s.dialer, err = tls2.NewTls(u.String(), s.dialer)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return s, nil
