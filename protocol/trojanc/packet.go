@@ -53,8 +53,8 @@ func (c *PacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) 
 	if _, err = io.ReadFull(c.Conn, buf); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-	copy(p, buf[2:])
-	return int(length), addr, nil
+	n = copy(p, buf[2:])
+	return n, addr, nil
 }
 
 func (c *PacketConn) WriteTo(p []byte, addr string) (n int, err error) {
