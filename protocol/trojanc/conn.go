@@ -106,6 +106,9 @@ func (c *Conn) ReadReqHeader() (err error) {
 	c.metadata.Network = ParseNetwork(buf[0])
 	c.metadata.Type = ParseMetadataType(buf[1])
 	n := c.metadata.Len()
+	if n < 2 {
+		return fmt.Errorf("invalid trojan header")
+	}
 	if n > cap(buf) {
 		buf = pool.Get(n)
 		defer pool.Put(buf)

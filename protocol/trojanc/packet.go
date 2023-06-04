@@ -2,6 +2,7 @@ package trojanc
 
 import (
 	"encoding/binary"
+	"fmt"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"io"
@@ -31,8 +32,11 @@ func (c *PacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) 
 	}
 	m := Metadata{Metadata: protocol.Metadata{Type: ParseMetadataType(buf[0])}}
 	buf = pool.Get(m.Len())
-	buf[0] = MetadataTypeToByte(m.Type)
 	defer pool.Put(buf)
+	if len(buf) < 2 {
+		return 0, netip.AddrPort{}, fmt.Errorf("invalid trojan packet")
+	}
+	buf[0] = MetadataTypeToByte(m.Type)
 	if _, err = io.ReadFull(c.Conn, buf[1:]); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
