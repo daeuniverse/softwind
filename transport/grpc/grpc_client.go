@@ -3,6 +3,12 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pkg/cert"
 	proto "github.com/mzz2017/softwind/pkg/gun_proto"
@@ -15,11 +21,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
-	"io"
-	"net"
-	"os"
-	"sync"
-	"time"
 )
 
 // https://github.com/v2fly/v2ray-core/blob/v5.0.6/transport/internet/grpc/dial.go
@@ -31,6 +32,12 @@ var (
 	globalCCMap    map[string]*clientConnMeta
 	globalCCAccess sync.Mutex
 )
+
+func CleanGlobalClientConnectionCache() {
+	globalCCAccess.Lock()
+	defer globalCCAccess.Unlock()
+	globalCCMap = make(map[string]*clientConnMeta)
+}
 
 type ccCanceller func()
 
