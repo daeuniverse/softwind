@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -18,7 +19,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
@@ -346,16 +346,11 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 
 func getGrpcClientConn(ctx context.Context, tcpDialer *netproxy.ContextDialer, serverName string, address string, allowInsecure bool, somark uint32) (*clientConnMeta, ccCanceller, error) {
 	// allowInsecure?
-	var certOption grpc.DialOption
-	if allowInsecure {
-		certOption = grpc.WithTransportCredentials(insecure.NewCredentials())
-	} else {
-		roots, err := cert.GetSystemCertPool()
-		if err != nil {
-			return nil, func() {}, fmt.Errorf("failed to get system certificate pool")
-		}
-		certOption = grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(roots, serverName))
+	roots, err := cert.GetSystemCertPool()
+	if err != nil {
+		return nil, func() {}, fmt.Errorf("failed to get system certificate pool")
 	}
+	certOption := grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{ServerName: serverName, RootCAs: roots, InsecureSkipVerify: allowInsecure}))
 
 	globalCCAccess.Lock()
 	if globalCCMap == nil {
@@ -380,7 +375,6 @@ func getGrpcClientConn(ctx context.Context, tcpDialer *netproxy.ContextDialer, s
 	meta := &clientConnMeta{
 		cc: nil,
 	}
-	var err error
 	meta.cc, err = grpc.DialContext(ctx, address,
 		certOption,
 		grpc.WithContextDialer(func(ctxGrpc context.Context, s string) (net.Conn, error) {
