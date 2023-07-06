@@ -2,6 +2,7 @@ package vmess
 
 import (
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/mzz2017/softwind/common"
 	"github.com/mzz2017/softwind/netproxy"
@@ -45,7 +46,7 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 	return &Dialer{
 		proxyAddress:      header.ProxyAddress,
 		proxySNI:          header.SNI,
-		grpcServiceName:   header.GrpcServiceName,
+		grpcServiceName:   header.Feature1,
 		nextDialer:        nextDialer,
 		metadata:          metadata,
 		key:               NewID(id).CmdKey(),

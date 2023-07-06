@@ -58,7 +58,9 @@ func selectRand() *rand.Rand {
 }
 
 func Intn(n int) int                   { return selectRand().Intn(n) }
+func Int() int                         { return selectRand().Int() }
 func Int63n(n int64) int64             { return selectRand().Int63n(n) }
+func Uint32() uint32                   { return selectRand().Uint32() }
 func Float64() float64                 { return selectRand().Float64() }
 func Read(p []byte) (n int, err error) { return selectRand().Read(p) }
 func Rand() *rand.Rand                 { return selectRand() }

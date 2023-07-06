@@ -2,12 +2,13 @@ package shadowsocks_stream
 
 import (
 	"bytes"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/protocol/direct"
 	"net"
 	"net/http"
 	"testing"
+
+	"github.com/mzz2017/softwind/netproxy"
+	"github.com/mzz2017/softwind/protocol"
+	"github.com/mzz2017/softwind/protocol/direct"
 )
 
 type Params struct {
@@ -33,7 +34,7 @@ func TestNewSSStream(t *testing.T) {
 	}
 	c := http.Client{
 		Transport: &http.Transport{Dial: func(network string, addr string) (net.Conn, error) {
-			c, err := dialer.DialTcp(addr)
+			c, err := dialer.Dial("tcp", addr)
 			if err != nil {
 				return nil, err
 			}

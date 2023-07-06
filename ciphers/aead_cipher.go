@@ -4,10 +4,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha1"
+	"io"
+
 	"github.com/mzz2017/softwind/pool"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
-	"io"
 )
 
 type CipherConf struct {
@@ -20,7 +21,7 @@ type CipherConf struct {
 
 const (
 	MaxNonceSize = 12
-	ATypeIPv4    = 1
+	ATypeIpv4    = 1
 	ATypeDomain  = 3
 	ATypeIpv6    = 4
 )
