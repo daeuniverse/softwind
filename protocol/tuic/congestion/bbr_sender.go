@@ -17,8 +17,7 @@ const (
 	InitialMaxDatagramSize        = 1252
 	InitialPacketSizeIPv4         = 1252
 	InitialPacketSizeIPv6         = 1232
-	InitialCongestionWindow       = 32
-	DefaultBBRMaxCongestionWindow = 10000
+	DefaultBBRMaxCongestionWindow = 10240
 )
 
 func GetInitialPacketSize(addr net.Addr) congestion.ByteCount {

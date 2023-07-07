@@ -7,8 +7,10 @@ import (
 )
 
 const (
-	DefaultStreamReceiveWindow     = 15728640 // 15 MB/s
-	DefaultConnectionReceiveWindow = 67108864 // 64 MB/s
+	InitialStreamReceiveWindow     = 2 * 1024 * 1024  // 2 MB
+	MaxStreamReceiveWindow         = 32 * 1024 * 1024 // 32 MB
+	InitialConnectionReceiveWindow = 32 * 1024 * 1024 // 32 MB
+	MaxConnectionReceiveWindow     = 64 * 1024 * 1024 // 64 MB
 )
 
 func SetCongestionController(quicConn quic.Connection, cc string, cwnd int) {

@@ -56,10 +56,10 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 				ClientOption: &ClientOption{
 					TlsConfig: header.TlsConfig,
 					QuicConfig: &quic.Config{
-						InitialStreamReceiveWindow:     common.DefaultStreamReceiveWindow / 10,
-						MaxStreamReceiveWindow:         common.DefaultStreamReceiveWindow,
-						InitialConnectionReceiveWindow: common.DefaultConnectionReceiveWindow / 10,
-						MaxConnectionReceiveWindow:     common.DefaultConnectionReceiveWindow,
+						InitialStreamReceiveWindow:     common.InitialStreamReceiveWindow,
+						MaxStreamReceiveWindow:         common.MaxStreamReceiveWindow,
+						InitialConnectionReceiveWindow: common.InitialConnectionReceiveWindow,
+						MaxConnectionReceiveWindow:     common.MaxConnectionReceiveWindow,
 						MaxIncomingStreams:             quicMaxOpenIncomingStreams,
 						MaxIncomingUniStreams:          quicMaxOpenIncomingStreams,
 						KeepAlivePeriod:                3 * time.Second,
@@ -74,7 +74,7 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 					UdpRelayMode:          udpRelayMode,
 					CongestionController:  header.Feature1,
 					ReduceRtt:             false,
-					CWND:                  16,
+					CWND:                  10,
 					MaxUdpRelayPacketSize: maxDatagramFrameSize,
 				},
 				udp: true,

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -294,11 +295,12 @@ func (t *clientImpl) DialContextWithDialer(ctx context.Context, metadata *protoc
 		defer func() {
 			t.deferQuicConn(quicConn, err)
 		}()
-		buf := pool.GetBuffer()
-		defer pool.PutBuffer(buf)
-		err = NewConnect(NewAddress(metadata)).WriteTo(buf)
-		if err != nil {
-			return nil, err
+		connect := NewConnect(NewAddress(metadata))
+		buf := pool.Get(connect.BytesLen())
+		defer buf.Put()
+		n := connect.WriteToBytes(buf)
+		if n != len(buf) {
+			return nil, fmt.Errorf("n != len(buf)")
 		}
 		quicStream, err := quicConn.OpenStream()
 		if err != nil {
@@ -310,8 +312,7 @@ func (t *clientImpl) DialContextWithDialer(ctx context.Context, metadata *protoc
 			quicConn.RemoteAddr(),
 			nil,
 		)
-		_, err = buf.WriteTo(stream)
-		if err != nil {
+		if _, err = stream.Write(buf); err != nil {
 			_ = stream.Close()
 			return nil, err
 		}

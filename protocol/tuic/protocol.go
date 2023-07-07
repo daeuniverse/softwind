@@ -92,6 +92,12 @@ func (c CommandHead) WriteTo(writer BufferedWriter) (err error) {
 	return
 }
 
+func (c CommandHead) WriteToBytes(buf []byte) (n int) {
+	buf[0] = c.VER
+	buf[1] = byte(c.TYPE)
+	return 2
+}
+
 func (c CommandHead) BytesLen() int {
 	return 1 + c.TYPE.BytesLen()
 }
@@ -208,6 +214,12 @@ func (c Connect) WriteTo(writer BufferedWriter) (err error) {
 		return
 	}
 	return
+}
+
+func (c Connect) WriteToBytes(b []byte) (n int) {
+	n += c.CommandHead.WriteToBytes(b)
+	n += c.ADDR.WriteToBytes(b[2:])
+	return n
 }
 
 func (c Connect) BytesLen() int {
@@ -532,6 +544,16 @@ func (c Address) WriteTo(writer BufferedWriter) (err error) {
 		return
 	}
 	return
+}
+
+func (c Address) WriteToBytes(b []byte) (n int) {
+	b[0] = c.TYPE
+	if c.TYPE == AtypNone {
+		return
+	}
+	n = copy(b[1:], c.ADDR)
+	binary.BigEndian.PutUint16(b[1+n:], c.PORT)
+	return 3 + n
 }
 
 func (c Address) String() string {
