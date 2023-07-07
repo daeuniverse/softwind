@@ -18,6 +18,10 @@ type quicStreamConn struct {
 
 	closeOnce sync.Once
 	closeErr  error
+
+	muTimer            sync.Mutex
+	readDeadlineTimer  *time.Timer
+	writeDeadlineTimer *time.Timer
 }
 
 func (q *quicStreamConn) Write(p []byte) (n int, err error) {
@@ -33,17 +37,54 @@ func (q *quicStreamConn) Close() error {
 	return q.closeErr
 }
 
+func (q *quicStreamConn) SetDeadline(t time.Time) error {
+	_ = q.SetReadDeadline(t)
+	_ = q.SetWriteDeadline(t)
+	return nil
+}
+
 func (q *quicStreamConn) SetReadDeadline(t time.Time) error {
-	// FIXME: support to call multiple times.
-	time.AfterFunc(time.Until(t), func() {
-		q.lock.Lock()
-		defer q.lock.Unlock()
-		q.Stream.CancelRead(0)
-	})
+	q.muTimer.Lock()
+	defer q.muTimer.Unlock()
+	dur := time.Until(t)
+	if q.readDeadlineTimer != nil {
+		q.readDeadlineTimer.Reset(dur)
+	} else {
+		q.readDeadlineTimer = time.AfterFunc(dur, func() {
+			_ = q.Stream.SetReadDeadline(time.Now())
+			q.muTimer.Lock()
+			defer q.muTimer.Unlock()
+			q.lock.Lock()
+			defer q.lock.Unlock()
+			q.Stream.CancelRead(0)
+			q.readDeadlineTimer = nil
+		})
+	}
+	return nil
+}
+
+func (q *quicStreamConn) SetWriteDeadline(t time.Time) error {
+	q.muTimer.Lock()
+	defer q.muTimer.Unlock()
+	dur := time.Until(t)
+	if q.writeDeadlineTimer != nil {
+		q.writeDeadlineTimer.Reset(dur)
+	} else {
+		q.writeDeadlineTimer = time.AfterFunc(dur, func() {
+			_ = q.Stream.SetWriteDeadline(time.Now())
+			q.muTimer.Lock()
+			defer q.muTimer.Unlock()
+			q.lock.Lock()
+			defer q.lock.Unlock()
+			q.Stream.CancelWrite(0)
+			q.writeDeadlineTimer = nil
+		})
+	}
 	return nil
 }
 
 func (q *quicStreamConn) CloseWrite() error {
+	_ = q.Stream.SetWriteDeadline(time.Now())
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	q.Stream.CancelWrite(0)
