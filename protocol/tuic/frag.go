@@ -10,6 +10,9 @@ func fragWriteNative(quicConn quic.Connection, packet Packet, buf *bytes.Buffer,
 	fullPayload := packet.DATA
 	off := 0
 	fragID := uint8(0)
+	if fragSize == 0 {
+		fragSize = 1
+	}
 	fragCount := uint8((len(fullPayload) + fragSize - 1) / fragSize) // round up
 	packet.FRAG_TOTAL = fragCount
 	for off < len(fullPayload) {

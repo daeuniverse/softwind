@@ -21,14 +21,15 @@ import (
 )
 
 type ClientOption struct {
-	TlsConfig            *tls.Config
-	QuicConfig           *quic.Config
-	Uuid                 [16]byte
-	Password             string
-	UdpRelayMode         common.UdpRelayMode
-	CongestionController string
-	ReduceRtt            bool
-	CWND                 int
+	TlsConfig             *tls.Config
+	QuicConfig            *quic.Config
+	Uuid                  [16]byte
+	Password              string
+	UdpRelayMode          common.UdpRelayMode
+	MaxUdpRelayPacketSize int
+	CongestionController  string
+	ReduceRtt             bool
+	CWND                  int
 }
 
 type clientImpl struct {
@@ -342,12 +343,13 @@ func (t *clientImpl) ListenPacketWithDialer(ctx context.Context, metadata *proto
 		}
 	}
 	pc := &quicStreamPacketConn{
-		connId:          connId,
-		quicConn:        quicConn,
-		inputConn:       bufferred_conn.NewBufferedConn(pipe2),
-		udpRelayMode:    t.UdpRelayMode,
-		deferQuicConnFn: t.deferQuicConn,
-		closeDeferFn:    nil,
+		connId:                connId,
+		quicConn:              quicConn,
+		inputConn:             bufferred_conn.NewBufferedConn(pipe2),
+		udpRelayMode:          t.UdpRelayMode,
+		maxUdpRelayPacketSize: t.MaxUdpRelayPacketSize,
+		deferQuicConnFn:       t.deferQuicConn,
+		closeDeferFn:          nil,
 	}
 	return pc, nil
 }

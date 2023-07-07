@@ -45,7 +45,7 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 	if reservedStreamsCapability < 1 {
 		reservedStreamsCapability = 1
 	}
-	maxDatagramFrameSize := 1500
+	maxDatagramFrameSize := 1252
 	udpRelayMode := common.NATIVE
 	if header.Flags&protocol.Flags_Tuic_UdpRelayModeQuic > 0 {
 		udpRelayMode = common.QUIC
@@ -69,12 +69,13 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 						HandshakeIdleTimeout:           8 * time.Second,
 						CapabilityCallback:             capabilityCallback,
 					},
-					Uuid:                 id,
-					Password:             header.Password,
-					UdpRelayMode:         udpRelayMode,
-					CongestionController: header.Feature1,
-					ReduceRtt:            false,
-					CWND:                 16,
+					Uuid:                  id,
+					Password:              header.Password,
+					UdpRelayMode:          udpRelayMode,
+					CongestionController:  header.Feature1,
+					ReduceRtt:             false,
+					CWND:                  16,
+					MaxUdpRelayPacketSize: maxDatagramFrameSize,
 				},
 				udp: true,
 			}
