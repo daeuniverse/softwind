@@ -61,8 +61,17 @@ func (p *packets) setEmpty() {
 }
 
 func (p *packets) Close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return nil
+	}
 	p.closed = true
-	close(p.nonEmpty)
+	select {
+	case <-p.nonEmpty:
+	default:
+		close(p.nonEmpty)
+	}
 	return nil
 }
 

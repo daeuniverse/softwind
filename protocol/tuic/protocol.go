@@ -60,24 +60,25 @@ type CommandHead struct {
 	TYPE CommandType
 }
 
-func NewCommandHead(TYPE CommandType) CommandHead {
-	return CommandHead{
+func NewCommandHead(TYPE CommandType) *CommandHead {
+	return &CommandHead{
 		VER:  VER,
 		TYPE: TYPE,
 	}
 }
 
-func ReadCommandHead(reader BufferedReader) (c CommandHead, err error) {
-	c.VER, err = reader.ReadByte()
+func ReadCommandHead(reader BufferedReader) (c *CommandHead, err error) {
+	var _c CommandHead
+	_c.VER, err = reader.ReadByte()
 	if err != nil {
-		return
+		return nil, err
 	}
 	TYPE, err := reader.ReadByte()
 	if err != nil {
-		return
+		return nil, err
 	}
-	c.TYPE = CommandType(TYPE)
-	return
+	_c.TYPE = CommandType(TYPE)
+	return &_c, nil
 }
 
 func (c CommandHead) WriteTo(writer BufferedWriter) (err error) {
@@ -103,37 +104,37 @@ func (c CommandHead) BytesLen() int {
 }
 
 type Authenticate struct {
-	CommandHead
+	*CommandHead
 	UUID  [16]byte
 	TOKEN [32]byte
 }
 
-func NewAuthenticate(UUID [16]byte, TOKEN [32]byte) Authenticate {
-	return Authenticate{
+func NewAuthenticate(UUID [16]byte, TOKEN [32]byte) *Authenticate {
+	return &Authenticate{
 		CommandHead: NewCommandHead(AuthenticateType),
 		UUID:        UUID,
 		TOKEN:       TOKEN,
 	}
 }
 
-func ReadAuthenticateWithHead(head CommandHead, reader BufferedReader) (c Authenticate, err error) {
-	c.CommandHead = head
-	if c.CommandHead.TYPE != AuthenticateType {
-		err = fmt.Errorf("error command type: %s", c.CommandHead.TYPE)
-		return
+func ReadAuthenticateWithHead(head *CommandHead, reader BufferedReader) (c *Authenticate, err error) {
+	var _c Authenticate
+	_c.CommandHead = head
+	if _c.CommandHead.TYPE != AuthenticateType {
+		return nil, fmt.Errorf("error command type: %s", _c.CommandHead.TYPE)
 	}
-	_, err = io.ReadFull(reader, c.UUID[:])
+	_, err = io.ReadFull(reader, _c.UUID[:])
 	if err != nil {
-		return
+		return nil, err
 	}
-	_, err = io.ReadFull(reader, c.TOKEN[:])
+	_, err = io.ReadFull(reader, _c.TOKEN[:])
 	if err != nil {
-		return
+		return nil, err
 	}
-	return
+	return &_c, nil
 }
 
-func ReadAuthenticate(reader BufferedReader) (c Authenticate, err error) {
+func ReadAuthenticate(reader BufferedReader) (c *Authenticate, err error) {
 	head, err := ReadCommandHead(reader)
 	if err != nil {
 		return
@@ -172,31 +173,32 @@ func (c Authenticate) BytesLen() int {
 }
 
 type Connect struct {
-	CommandHead
-	ADDR Address
+	*CommandHead
+	ADDR *Address
 }
 
-func NewConnect(ADDR Address) Connect {
-	return Connect{
+func NewConnect(ADDR *Address) *Connect {
+	return &Connect{
 		CommandHead: NewCommandHead(ConnectType),
 		ADDR:        ADDR,
 	}
 }
 
-func ReadConnectWithHead(head CommandHead, reader BufferedReader) (c Connect, err error) {
-	c.CommandHead = head
-	if c.CommandHead.TYPE != ConnectType {
-		err = fmt.Errorf("error command type: %s", c.CommandHead.TYPE)
-		return
+func ReadConnectWithHead(head *CommandHead, reader BufferedReader) (c *Connect, err error) {
+	var _c Connect
+	_c.CommandHead = head
+	if _c.CommandHead.TYPE != ConnectType {
+		err = fmt.Errorf("error command type: %s", _c.CommandHead.TYPE)
+		return nil, err
 	}
-	c.ADDR, err = ReadAddress(reader)
+	_c.ADDR, err = ReadAddress(reader)
 	if err != nil {
-		return
+		return nil, err
 	}
-	return
+	return &_c, nil
 }
 
-func ReadConnect(reader BufferedReader) (c Connect, err error) {
+func ReadConnect(reader BufferedReader) (c *Connect, err error) {
 	head, err := ReadCommandHead(reader)
 	if err != nil {
 		return
@@ -227,18 +229,18 @@ func (c Connect) BytesLen() int {
 }
 
 type Packet struct {
-	CommandHead
+	*CommandHead
 	ASSOC_ID   uint16
 	PKT_ID     uint16
 	FRAG_TOTAL uint8
 	FRAG_ID    uint8
 	SIZE       uint16
-	ADDR       Address
+	ADDR       *Address
 	DATA       []byte
 }
 
-func NewPacket(ASSOC_ID uint16, PKT_ID uint16, FRGA_TOTAL uint8, FRAG_ID uint8, SIZE uint16, ADDR Address, DATA []byte) Packet {
-	return Packet{
+func NewPacket(ASSOC_ID uint16, PKT_ID uint16, FRGA_TOTAL uint8, FRAG_ID uint8, SIZE uint16, ADDR *Address, DATA []byte) *Packet {
+	return &Packet{
 		CommandHead: NewCommandHead(PacketType),
 		ASSOC_ID:    ASSOC_ID,
 		PKT_ID:      PKT_ID,
@@ -250,45 +252,46 @@ func NewPacket(ASSOC_ID uint16, PKT_ID uint16, FRGA_TOTAL uint8, FRAG_ID uint8, 
 	}
 }
 
-func ReadPacketWithHead(head CommandHead, reader BufferedReader) (c Packet, err error) {
-	c.CommandHead = head
-	if c.CommandHead.TYPE != PacketType {
-		err = fmt.Errorf("error command type: %s", c.CommandHead.TYPE)
-		return
+func ReadPacketWithHead(head *CommandHead, reader BufferedReader) (c *Packet, err error) {
+	var _c Packet
+	_c.CommandHead = head
+	if _c.CommandHead.TYPE != PacketType {
+		err = fmt.Errorf("error command type: %s", _c.CommandHead.TYPE)
+		return nil, err
 	}
-	err = binary.Read(reader, binary.BigEndian, &c.ASSOC_ID)
+	err = binary.Read(reader, binary.BigEndian, &_c.ASSOC_ID)
 	if err != nil {
-		return
+		return nil, err
 	}
-	err = binary.Read(reader, binary.BigEndian, &c.PKT_ID)
+	err = binary.Read(reader, binary.BigEndian, &_c.PKT_ID)
 	if err != nil {
-		return
+		return nil, err
 	}
-	err = binary.Read(reader, binary.BigEndian, &c.FRAG_TOTAL)
+	err = binary.Read(reader, binary.BigEndian, &_c.FRAG_TOTAL)
 	if err != nil {
-		return
+		return nil, err
 	}
-	err = binary.Read(reader, binary.BigEndian, &c.FRAG_ID)
+	err = binary.Read(reader, binary.BigEndian, &_c.FRAG_ID)
 	if err != nil {
-		return
+		return nil, err
 	}
-	err = binary.Read(reader, binary.BigEndian, &c.SIZE)
+	err = binary.Read(reader, binary.BigEndian, &_c.SIZE)
 	if err != nil {
-		return
+		return nil, err
 	}
-	c.ADDR, err = ReadAddress(reader)
+	_c.ADDR, err = ReadAddress(reader)
 	if err != nil {
-		return
+		return nil, err
 	}
-	c.DATA = make([]byte, c.SIZE)
-	_, err = io.ReadFull(reader, c.DATA)
+	_c.DATA = make([]byte, _c.SIZE)
+	_, err = io.ReadFull(reader, _c.DATA)
 	if err != nil {
-		return
+		return nil, err
 	}
-	return
+	return &_c, nil
 }
 
-func ReadPacket(reader BufferedReader) (c Packet, err error) {
+func ReadPacket(reader BufferedReader) (c *Packet, err error) {
 	head, err := ReadCommandHead(reader)
 	if err != nil {
 		return
@@ -339,31 +342,32 @@ func (c Packet) BytesLen() int {
 var PacketOverHead = NewPacket(0, 0, 0, 0, 0, NewAddressAddrPort(netip.AddrPortFrom(netip.IPv6Unspecified(), 0)), nil).BytesLen()
 
 type Dissociate struct {
-	CommandHead
+	*CommandHead
 	ASSOC_ID uint16
 }
 
-func NewDissociate(ASSOC_ID uint16) Dissociate {
-	return Dissociate{
+func NewDissociate(ASSOC_ID uint16) *Dissociate {
+	return &Dissociate{
 		CommandHead: NewCommandHead(DissociateType),
 		ASSOC_ID:    ASSOC_ID,
 	}
 }
 
-func ReadDissociateWithHead(head CommandHead, reader BufferedReader) (c Dissociate, err error) {
-	c.CommandHead = head
-	if c.CommandHead.TYPE != DissociateType {
-		err = fmt.Errorf("error command type: %s", c.CommandHead.TYPE)
-		return
+func ReadDissociateWithHead(head *CommandHead, reader BufferedReader) (c *Dissociate, err error) {
+	var _c Dissociate
+	_c.CommandHead = head
+	if _c.CommandHead.TYPE != DissociateType {
+		err = fmt.Errorf("error command type: %s", _c.CommandHead.TYPE)
+		return nil, err
 	}
-	err = binary.Read(reader, binary.BigEndian, &c.ASSOC_ID)
+	err = binary.Read(reader, binary.BigEndian, &_c.ASSOC_ID)
 	if err != nil {
-		return
+		return nil, err
 	}
-	return
+	return &_c, nil
 }
 
-func ReadDissociate(reader BufferedReader) (c Dissociate, err error) {
+func ReadDissociate(reader BufferedReader) (c *Dissociate, err error) {
 	head, err := ReadCommandHead(reader)
 	if err != nil {
 		return
@@ -388,25 +392,26 @@ func (c Dissociate) BytesLen() int {
 }
 
 type Heartbeat struct {
-	CommandHead
+	*CommandHead
 }
 
-func NewHeartbeat() Heartbeat {
-	return Heartbeat{
+func NewHeartbeat() *Heartbeat {
+	return &Heartbeat{
 		CommandHead: NewCommandHead(HeartbeatType),
 	}
 }
 
-func ReadHeartbeatWithHead(head CommandHead, reader BufferedReader) (c Heartbeat, err error) {
-	c.CommandHead = head
-	if c.CommandHead.TYPE != HeartbeatType {
-		err = fmt.Errorf("error command type: %s", c.CommandHead.TYPE)
-		return
+func ReadHeartbeatWithHead(head *CommandHead, reader BufferedReader) (c *Heartbeat, err error) {
+	var _c Heartbeat
+	_c.CommandHead = head
+	if _c.CommandHead.TYPE != HeartbeatType {
+		err = fmt.Errorf("error command type: %s", _c.CommandHead.TYPE)
+		return nil, err
 	}
-	return
+	return &_c, nil
 }
 
-func ReadHeartbeat(reader BufferedReader) (c Heartbeat, err error) {
+func ReadHeartbeat(reader BufferedReader) (c *Heartbeat, err error) {
 	head, err := ReadCommandHead(reader)
 	if err != nil {
 		return
@@ -428,7 +433,7 @@ type Address struct {
 	PORT uint16
 }
 
-func NewAddress(metadata *protocol.Metadata) Address {
+func NewAddress(metadata *protocol.Metadata) *Address {
 	var addrType byte
 	var addr []byte
 	switch metadata.Type {
@@ -445,14 +450,14 @@ func NewAddress(metadata *protocol.Metadata) Address {
 		copy(addr[1:], metadata.Hostname)
 	}
 
-	return Address{
+	return &Address{
 		TYPE: addrType,
 		ADDR: addr,
 		PORT: metadata.Port,
 	}
 }
 
-func NewAddressNetAddr(addr net.Addr) (Address, error) {
+func NewAddressNetAddr(addr net.Addr) (*Address, error) {
 	if addr, ok := addr.(interface{ AddrPort() netip.AddrPort }); ok {
 		if addrPort := addr.AddrPort(); addrPort.IsValid() { // sing's M.Socksaddr maybe return an invalid AddrPort if it's a DomainName
 			return NewAddressAddrPort(addrPort), nil
@@ -464,12 +469,12 @@ func NewAddressNetAddr(addr net.Addr) (Address, error) {
 	}
 	metadata, err := protocol.ParseMetadata(addrStr)
 	if err != nil {
-		return Address{}, err
+		return &Address{}, err
 	}
 	return NewAddress(&metadata), nil
 }
 
-func NewAddressAddrPort(addrPort netip.AddrPort) Address {
+func NewAddressAddrPort(addrPort netip.AddrPort) *Address {
 	var addrType byte
 	port := addrPort.Port()
 	addr := addrPort.Addr().Unmap()
@@ -478,28 +483,29 @@ func NewAddressAddrPort(addrPort netip.AddrPort) Address {
 	} else {
 		addrType = AtypIPv6
 	}
-	return Address{
+	return &Address{
 		TYPE: addrType,
 		ADDR: addr.AsSlice(),
 		PORT: port,
 	}
 }
 
-func ReadAddress(reader BufferedReader) (c Address, err error) {
-	c.TYPE, err = reader.ReadByte()
+func ReadAddress(reader BufferedReader) (c *Address, err error) {
+	var _c Address
+	_c.TYPE, err = reader.ReadByte()
 	if err != nil {
 		return
 	}
-	switch c.TYPE {
+	switch _c.TYPE {
 	case AtypIPv4:
-		c.ADDR = make([]byte, net.IPv4len)
-		_, err = io.ReadFull(reader, c.ADDR)
+		_c.ADDR = make([]byte, net.IPv4len)
+		_, err = io.ReadFull(reader, _c.ADDR)
 		if err != nil {
 			return
 		}
 	case AtypIPv6:
-		c.ADDR = make([]byte, net.IPv6len)
-		_, err = io.ReadFull(reader, c.ADDR)
+		_c.ADDR = make([]byte, net.IPv6len)
+		_, err = io.ReadFull(reader, _c.ADDR)
 		if err != nil {
 			return
 		}
@@ -509,22 +515,22 @@ func ReadAddress(reader BufferedReader) (c Address, err error) {
 		if err != nil {
 			return
 		}
-		c.ADDR = make([]byte, addrLen+1)
-		c.ADDR[0] = addrLen
-		_, err = io.ReadFull(reader, c.ADDR[1:])
+		_c.ADDR = make([]byte, addrLen+1)
+		_c.ADDR[0] = addrLen
+		_, err = io.ReadFull(reader, _c.ADDR[1:])
 		if err != nil {
 			return
 		}
 	}
 
-	if c.TYPE == AtypNone {
+	if _c.TYPE == AtypNone {
 		return
 	}
-	err = binary.Read(reader, binary.BigEndian, &c.PORT)
+	err = binary.Read(reader, binary.BigEndian, &_c.PORT)
 	if err != nil {
 		return
 	}
-	return
+	return &_c, nil
 }
 
 func (c Address) WriteTo(writer BufferedWriter) (err error) {

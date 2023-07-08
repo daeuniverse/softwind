@@ -135,7 +135,7 @@ func (t *clientImpl) handleUniStream(quicConn quic.Connection) (err error) {
 		if err != nil {
 			return err
 		}
-		go func() (err error) {
+		go func(stream quic.ReceiveStream) (err error) {
 			var assocId uint16
 			defer func() {
 				t.deferQuicConn(quicConn, err)
@@ -147,13 +147,14 @@ func (t *clientImpl) handleUniStream(quicConn quic.Connection) (err error) {
 				stream.CancelRead(0)
 			}()
 			reader := bufio.NewReader(stream)
-			commandHead, err := ReadCommandHead(reader)
+			var commandHead *CommandHead
+			commandHead, err = ReadCommandHead(reader)
 			if err != nil {
-				return
+				return err
 			}
 			switch commandHead.TYPE {
 			case PacketType:
-				var packet Packet
+				var packet *Packet
 				packet, err = ReadPacketWithHead(commandHead, reader)
 				if err != nil {
 					return
@@ -162,12 +163,12 @@ func (t *clientImpl) handleUniStream(quicConn quic.Connection) (err error) {
 					assocId = packet.ASSOC_ID
 					if val, ok := t.udpIncomingPacketsMap.Load(assocId); ok {
 						packets := val.(*packets)
-						packets.PushBack(&packet)
+						packets.PushBack(packet)
 					}
 				}
 			}
-			return
-		}()
+			return nil
+		}(stream)
 	}
 }
 
@@ -176,12 +177,11 @@ func (t *clientImpl) handleMessage(quicConn quic.Connection) (err error) {
 		t.deferQuicConn(quicConn, err)
 	}()
 	for {
-		var message []byte
-		message, err = quicConn.ReceiveMessage()
+		message, err := quicConn.ReceiveMessage()
 		if err != nil {
 			return err
 		}
-		go func() (err error) {
+		go func(message []byte) (err error) {
 			var assocId uint16
 			defer func() {
 				t.deferQuicConn(quicConn, err)
@@ -194,30 +194,30 @@ func (t *clientImpl) handleMessage(quicConn quic.Connection) (err error) {
 			reader := bytes.NewReader(message)
 			commandHead, err := ReadCommandHead(reader)
 			if err != nil {
-				return
+				return err
 			}
 			switch commandHead.TYPE {
 			case PacketType:
-				var packet Packet
+				var packet *Packet
 				packet, err = ReadPacketWithHead(commandHead, reader)
 				if err != nil {
-					return
+					return err
 				}
 				if t.udp && t.UdpRelayMode == common.NATIVE {
 					assocId = packet.ASSOC_ID
 					if val, ok := t.udpIncomingPacketsMap.Load(assocId); ok {
 						incomingPackets := val.(*packets)
-						incomingPackets.PushBack(&packet)
+						incomingPackets.PushBack(packet)
 					}
 				}
 			case HeartbeatType:
 				_, err = ReadHeartbeatWithHead(commandHead, reader)
 				if err != nil {
-					return
+					return err
 				}
 			}
-			return
-		}()
+			return nil
+		}(message)
 	}
 }
 
