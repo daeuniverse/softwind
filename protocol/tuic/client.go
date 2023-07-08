@@ -39,7 +39,7 @@ type clientImpl struct {
 	quicConn  quic.Connection
 	connMutex sync.Mutex
 
-	closed atomic.Bool
+	closed bool
 
 	udpIncomingPacketsMap sync.Map
 
@@ -228,11 +228,12 @@ func (t *clientImpl) deferQuicConn(quicConn quic.Connection, err error) {
 }
 
 func (t *clientImpl) forceClose(quicConn quic.Connection, err error) {
-	if t.closed.Load() {
+	t.connMutex.Lock()
+	if t.closed {
+		t.connMutex.Unlock()
 		return
 	}
-	t.closed.Store(true)
-	t.connMutex.Lock()
+	t.closed = true
 	if t.onClose != nil {
 		go t.onClose()
 		t.onClose = nil
@@ -257,12 +258,9 @@ func (t *clientImpl) forceClose(quicConn quic.Connection, err error) {
 		if quicConn != nil {
 			_ = quicConn.CloseWithError(ProtocolError, errStr)
 		}
-		udpInputMap := &t.udpIncomingPacketsMap
-		udpInputMap.Range(func(key, value any) bool {
-			if conn, ok := value.(net.Conn); ok {
-				_ = conn.Close()
-			}
-			udpInputMap.Delete(key)
+		t.udpIncomingPacketsMap.Range(func(key, value any) bool {
+			_ = value.(*packets).Close()
+			t.udpIncomingPacketsMap.Delete(key)
 			return true
 		})
 	})
@@ -273,7 +271,7 @@ func (t *clientImpl) Close() {
 }
 
 func (t *clientImpl) DialContextWithDialer(ctx context.Context, metadata *protocol.Metadata, dialer netproxy.Dialer, dialFn common.DialFunc) (netproxy.Conn, error) {
-	if t.closed.Load() {
+	if t.closed {
 		return nil, common.ErrClientClosed
 	}
 	quicConn, err := t.getQuicConn(ctx, dialer, dialFn)
@@ -315,7 +313,7 @@ func (t *clientImpl) DialContextWithDialer(ctx context.Context, metadata *protoc
 }
 
 func (t *clientImpl) ListenPacketWithDialer(ctx context.Context, metadata *protocol.Metadata, dialer netproxy.Dialer, dialFn common.DialFunc) (*quicStreamPacketConn, error) {
-	if t.closed.Load() {
+	if t.closed {
 		return nil, common.ErrClientClosed
 	}
 	quicConn, err := t.getQuicConn(ctx, dialer, dialFn)
