@@ -97,6 +97,9 @@ type quicStreamPacketConn struct {
 
 	// TODO: multiple defraggers for different PKT_ID
 	deFraggers sync.Map
+
+	muTimer       sync.Mutex
+	deadlineTimer *time.Timer
 }
 
 func (q *quicStreamPacketConn) Close() error {
@@ -145,18 +148,30 @@ func (q *quicStreamPacketConn) close() (err error) {
 }
 
 func (q *quicStreamPacketConn) SetDeadline(t time.Time) error {
-	//TODO implement me
+	q.muTimer.Lock()
+	defer q.muTimer.Unlock()
+	dur := time.Until(t)
+	if q.deadlineTimer != nil {
+		q.deadlineTimer.Reset(dur)
+	} else {
+		q.deadlineTimer = time.AfterFunc(dur, func() {
+			q.muTimer.Lock()
+			defer q.muTimer.Unlock()
+			q.Close()
+			q.deadlineTimer = nil
+		})
+	}
 	return nil
 }
 
 func (q *quicStreamPacketConn) SetReadDeadline(t time.Time) error {
-	//TODO implement me
-	return nil
+	// FIXME: Single direction.
+	return q.SetDeadline(t)
 }
 
 func (q *quicStreamPacketConn) SetWriteDeadline(t time.Time) error {
-	//TODO implement me
-	return nil
+	// FIXME: Single direction.
+	return q.SetDeadline(t)
 }
 
 func (q *quicStreamPacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {
