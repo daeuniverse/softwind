@@ -1,6 +1,7 @@
 package tuic
 
 import (
+	"container/list"
 	"errors"
 	"net"
 	"net/netip"
@@ -10,19 +11,69 @@ import (
 
 	"github.com/mzz2017/quic-go"
 	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pkg/bufferred_conn"
 	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/tuic/common"
 )
 
+type packets struct {
+	mu       sync.Mutex
+	list     *list.List
+	nonEmpty chan struct{}
+	closed   bool
+}
+
+func newPackets() *packets {
+	return &packets{
+		list:     list.New().Init(),
+		nonEmpty: make(chan struct{}),
+	}
+}
+
+func (p *packets) PushBack(packet *Packet) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.list.PushBack(packet)
+	select {
+	case <-p.nonEmpty:
+	default:
+		close(p.nonEmpty)
+	}
+}
+
+func (p *packets) PopFrontBlock() (packet *Packet, closed bool) {
+	<-p.nonEmpty
+	if p.closed {
+		return nil, true
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	packet = p.list.Remove(p.list.Front()).(*Packet)
+	if p.list.Len() == 0 {
+		p.setEmpty()
+	}
+	return packet, false
+}
+
+func (p *packets) setEmpty() {
+	p.nonEmpty = make(chan struct{})
+}
+
+func (p *packets) Close() error {
+	p.closed = true
+	close(p.nonEmpty)
+	return nil
+}
+
 type quicStreamPacketConn struct {
+	mu sync.Mutex
+
 	target string
 
-	connId    uint16
-	quicConn  quic.Connection
-	inputConn *bufferred_conn.BufferedConn
+	connId          uint16
+	quicConn        quic.Connection
+	incomingPackets *packets
 
 	udpRelayMode          common.UdpRelayMode
 	maxUdpRelayPacketSize int
@@ -35,7 +86,8 @@ type quicStreamPacketConn struct {
 	closeErr  error
 	closed    bool
 
-	deFragger
+	// TODO: multiple defraggers for different PKT_ID
+	deFraggers sync.Map
 }
 
 func (q *quicStreamPacketConn) Close() error {
@@ -47,6 +99,8 @@ func (q *quicStreamPacketConn) Close() error {
 }
 
 func (q *quicStreamPacketConn) close() (err error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	if q.closeDeferFn != nil {
 		defer q.closeDeferFn()
 	}
@@ -55,9 +109,8 @@ func (q *quicStreamPacketConn) close() (err error) {
 			q.deferQuicConnFn(q.quicConn, err)
 		}()
 	}
-	if q.inputConn != nil {
-		_ = q.inputConn.Close()
-		q.inputConn = nil
+	if q.incomingPackets != nil {
+		q.incomingPackets = nil
 
 		buf := pool.GetBuffer()
 		defer pool.PutBuffer(buf)
@@ -88,9 +141,7 @@ func (q *quicStreamPacketConn) SetDeadline(t time.Time) error {
 }
 
 func (q *quicStreamPacketConn) SetReadDeadline(t time.Time) error {
-	if q.inputConn != nil {
-		return q.inputConn.SetReadDeadline(t)
-	}
+	//TODO implement me
 	return nil
 }
 
@@ -100,37 +151,25 @@ func (q *quicStreamPacketConn) SetWriteDeadline(t time.Time) error {
 }
 
 func (q *quicStreamPacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {
-	if q.inputConn != nil {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.incomingPackets != nil {
 		for {
-			var packet Packet
-			packet, err = ReadPacket(q.inputConn)
-			if err != nil {
+			packet, closed := q.incomingPackets.PopFrontBlock()
+			if closed {
+				err = net.ErrClosed
 				return
 			}
-			if packetPtr := q.deFragger.Feed(packet); packetPtr != nil {
-				n = copy(p, packet.DATA)
-				addr = packetPtr.ADDR.UDPAddr().AddrPort()
+			_d, _ := q.deFraggers.LoadOrStore(packet.PKT_ID, &deFragger{})
+			d := _d.(*deFragger)
+			var assembled bool
+			// Feed packet into this deFragger.
+			// Return if this PKT_ID is ready and assembled.
+			if n, addr, assembled = d.Feed(packet, p); assembled {
+				q.deFraggers.Delete(packet.PKT_ID)
 				return
-			}
-		}
-	} else {
-		err = net.ErrClosed
-	}
-	return
-}
-
-func (q *quicStreamPacketConn) WaitReadFrom() (data []byte, put func(), addr net.Addr, err error) {
-	if q.inputConn != nil {
-		for {
-			var packet Packet
-			packet, err = ReadPacket(q.inputConn)
-			if err != nil {
-				return
-			}
-			if packetPtr := q.deFragger.Feed(packet); packetPtr != nil {
-				data = packetPtr.DATA
-				addr = packetPtr.ADDR.UDPAddr()
-				return
+			} else {
+				// FIXME: Timeout to clean deFraggers.
 			}
 		}
 	} else {

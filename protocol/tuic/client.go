@@ -14,7 +14,6 @@ import (
 
 	"github.com/mzz2017/quic-go"
 	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pkg/bufferred_conn"
 	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
@@ -42,7 +41,7 @@ type clientImpl struct {
 
 	closed atomic.Bool
 
-	udpInputMap sync.Map
+	udpIncomingPacketsMap sync.Map
 
 	// only ready for PoolClient
 	lastVisited atomic.Value
@@ -141,10 +140,8 @@ func (t *clientImpl) handleUniStream(quicConn quic.Connection) (err error) {
 			defer func() {
 				t.deferQuicConn(quicConn, err)
 				if err != nil && assocId != 0 {
-					if val, ok := t.udpInputMap.LoadAndDelete(assocId); ok {
-						if conn, ok := val.(net.Conn); ok {
-							_ = conn.Close()
-						}
+					if val, loaded := t.udpIncomingPacketsMap.LoadAndDelete(assocId); loaded {
+						val.(*packets).Close()
 					}
 				}
 				stream.CancelRead(0)
@@ -163,12 +160,9 @@ func (t *clientImpl) handleUniStream(quicConn quic.Connection) (err error) {
 				}
 				if t.udp && t.UdpRelayMode == common.QUIC {
 					assocId = packet.ASSOC_ID
-					if val, ok := t.udpInputMap.Load(assocId); ok {
-						if conn, ok := val.(net.Conn); ok {
-							writer := bufio.NewWriterSize(conn, packet.BytesLen())
-							_ = packet.WriteTo(writer)
-							_ = writer.Flush()
-						}
+					if val, ok := t.udpIncomingPacketsMap.Load(assocId); ok {
+						packets := val.(*packets)
+						packets.PushBack(&packet)
 					}
 				}
 			}
@@ -192,14 +186,12 @@ func (t *clientImpl) handleMessage(quicConn quic.Connection) (err error) {
 			defer func() {
 				t.deferQuicConn(quicConn, err)
 				if err != nil && assocId != 0 {
-					if val, ok := t.udpInputMap.LoadAndDelete(assocId); ok {
-						if conn, ok := val.(net.Conn); ok {
-							_ = conn.Close()
-						}
+					if val, loaded := t.udpIncomingPacketsMap.LoadAndDelete(assocId); loaded {
+						val.(*packets).Close()
 					}
 				}
 			}()
-			reader := bytes.NewBuffer(message)
+			reader := bytes.NewReader(message)
 			commandHead, err := ReadCommandHead(reader)
 			if err != nil {
 				return
@@ -213,19 +205,16 @@ func (t *clientImpl) handleMessage(quicConn quic.Connection) (err error) {
 				}
 				if t.udp && t.UdpRelayMode == common.NATIVE {
 					assocId = packet.ASSOC_ID
-					if val, ok := t.udpInputMap.Load(assocId); ok {
-						if conn, ok := val.(net.Conn); ok {
-							_, _ = conn.Write(message)
-						}
+					if val, ok := t.udpIncomingPacketsMap.Load(assocId); ok {
+						incomingPackets := val.(*packets)
+						incomingPackets.PushBack(&packet)
 					}
 				}
 			case HeartbeatType:
-				var heartbeat Heartbeat
-				heartbeat, err = ReadHeartbeatWithHead(commandHead, reader)
+				_, err = ReadHeartbeatWithHead(commandHead, reader)
 				if err != nil {
 					return
 				}
-				heartbeat.BytesLen()
 			}
 			return
 		}()
@@ -268,7 +257,7 @@ func (t *clientImpl) forceClose(quicConn quic.Connection, err error) {
 		if quicConn != nil {
 			_ = quicConn.CloseWithError(ProtocolError, errStr)
 		}
-		udpInputMap := &t.udpInputMap
+		udpInputMap := &t.udpIncomingPacketsMap
 		udpInputMap.Range(func(key, value any) bool {
 			if conn, ok := value.(net.Conn); ok {
 				_ = conn.Close()
@@ -334,11 +323,11 @@ func (t *clientImpl) ListenPacketWithDialer(ctx context.Context, metadata *proto
 		return nil, err
 	}
 
-	pipe1, pipe2 := net.Pipe()
 	var connId uint16
+	incomingPackets := newPackets()
 	for {
 		connId = uint16(fastrand.Intn(0xFFFF))
-		_, loaded := t.udpInputMap.LoadOrStore(connId, pipe1)
+		_, loaded := t.udpIncomingPacketsMap.LoadOrStore(connId, incomingPackets)
 		if !loaded {
 			break
 		}
@@ -346,7 +335,7 @@ func (t *clientImpl) ListenPacketWithDialer(ctx context.Context, metadata *proto
 	pc := &quicStreamPacketConn{
 		connId:                connId,
 		quicConn:              quicConn,
-		inputConn:             bufferred_conn.NewBufferedConn(pipe2),
+		incomingPackets:       incomingPackets,
 		udpRelayMode:          t.UdpRelayMode,
 		maxUdpRelayPacketSize: t.MaxUdpRelayPacketSize,
 		deferQuicConnFn:       t.deferQuicConn,
