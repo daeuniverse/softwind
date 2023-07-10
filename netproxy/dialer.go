@@ -17,15 +17,13 @@ type ContextDialer struct {
 func DialContext(ctx context.Context, network, addr string, dial func(network, addr string) (c Conn, err error)) (c Conn, err error) {
 	var done = make(chan struct{})
 	go func() {
-		conn, err := dial(network, addr)
-		if err != nil {
-			return
-		}
+		c, err = dial(network, addr)
 		select {
 		case <-ctx.Done():
-			_ = conn.Close()
+			if err == nil {
+				_ = c.Close()
+			}
 		default:
-			c = conn
 			close(done)
 		}
 	}()
