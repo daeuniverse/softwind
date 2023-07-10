@@ -52,6 +52,12 @@ func Get(size int) PB {
 	return make([]byte, size)
 }
 
+func GetFullCap(size int) PB {
+	a := Get(size)
+	a = a[:cap(a)]
+	return a
+}
+
 func GetMustBigger(size int) PB {
 	if size >= 1 && size <= maxsize {
 		i := GetBiggerClosestN(size)
