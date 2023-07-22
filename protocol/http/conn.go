@@ -8,8 +8,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
-	"golang.org/x/net/http2"
 	"io"
 	"net"
 	"net/http"
@@ -17,6 +15,9 @@ import (
 	"regexp"
 	"sync"
 	"time"
+
+	"github.com/mzz2017/softwind/netproxy"
+	"golang.org/x/net/http2"
 )
 
 type Conn struct {
@@ -25,7 +26,7 @@ type Conn struct {
 
 	proxy        *HttpProxy
 	magicNetwork string
-	addr         string
+	tgt          string
 
 	chShakeFinished    chan struct{}
 	muShake            sync.Mutex
@@ -108,7 +109,7 @@ func NewConn(nextDialer netproxy.Dialer, proxy *HttpProxy, addr string, network 
 	return &Conn{
 		nextDialer:      nextDialer,
 		proxy:           proxy,
-		addr:            addr,
+		tgt:             addr,
 		magicNetwork:    network,
 		chShakeFinished: make(chan struct{}),
 	}
@@ -154,22 +155,33 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			}
 
 			req.URL.Scheme = "http"
-			req.URL.Host = c.addr
+			req.URL.Host = c.tgt
 		} else {
 			// Arbitrary TCP
 
 			// HACK. http.ReadRequest also does this.
-			reqURL, err := url.Parse("http://" + c.addr)
+			reqURL, err := url.Parse("http://" + c.tgt)
 			if err != nil {
 				return 0, err
 			}
-			reqURL.Scheme = ""
+			method := "CONNECT"
+			if !c.proxy.transport {
+				reqURL.Scheme = ""
+			} else {
+				method = "PUT"
+			}
 
-			req, err = http.NewRequest("CONNECT", reqURL.String(), nil)
+			req, err = http.NewRequest(method, reqURL.String(), nil)
 			if err != nil {
 				return 0, err
 			}
 		}
+		if c.proxy.Host != "" {
+			req.Host = c.proxy.Host
+		} else if c.proxy.transport {
+			req.Host = "www.example.com"
+		}
+		req.URL.Path = c.proxy.Path
 		req.Close = false
 		if c.proxy.HaveAuth {
 			req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(c.proxy.Username+":"+c.proxy.Password)))
@@ -239,7 +251,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		}
 
 		if !c.proxy.https {
-			conn, err := c.nextDialer.Dial(c.magicNetwork, c.proxy.Host)
+			conn, err := c.nextDialer.Dial(c.magicNetwork, c.proxy.Addr)
 			if err != nil {
 				return 0, err
 			}
@@ -247,7 +259,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			return connectHttp1(conn)
 		}
 
-		rawConn, h2Conn, err := connPool.GetConn(c.nextDialer, c.proxy.Host, c.magicNetwork)
+		rawConn, h2Conn, err := connPool.GetConn(c.nextDialer, c.proxy.Addr, c.magicNetwork)
 		if err != nil {
 			return 0, err
 		}
@@ -260,7 +272,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			c.isH2 = true
 			return n, nil
 		} else {
-			conn, err := c.nextDialer.Dial(c.magicNetwork, c.proxy.Host)
+			conn, err := c.nextDialer.Dial(c.magicNetwork, c.proxy.Addr)
 			if err != nil {
 				return 0, err
 			}

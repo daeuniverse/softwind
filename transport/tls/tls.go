@@ -3,10 +3,11 @@ package tls
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
-	utls "github.com/refraction-networking/utls"
 	"net/url"
 	"strings"
+
+	"github.com/mzz2017/softwind/netproxy"
+	utls "github.com/refraction-networking/utls"
 )
 
 // Tls is a base Tls struct
@@ -45,9 +46,11 @@ func NewTls(s string, d netproxy.Dialer) (*Tls, error) {
 		t.skipVerify = true
 	}
 	// alpn
-	if query.Has("alpn") {
+	if query.Get("alpn") != "" {
 		// Set it not nil.
 		t.alpn = strings.Split(query.Get("alpn"), ",")
+	} else {
+		t.alpn = []string{"h2", "http/1.1"}
 	}
 	if t.serverName == "" {
 		t.serverName = u.Hostname()

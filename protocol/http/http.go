@@ -2,30 +2,42 @@ package http
 
 import (
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+
 	"github.com/mzz2017/softwind/netproxy"
 	tls2 "github.com/mzz2017/softwind/transport/tls"
-	"net/url"
 )
 
 // HttpProxy is an HTTP/HTTPS proxy.
 type HttpProxy struct {
-	https    bool
-	Host     string
-	HaveAuth bool
-	Username string
-	Password string
-	dialer   netproxy.Dialer
+	https     bool
+	transport bool
+	Addr      string
+	Host      string
+	Path      string
+	HaveAuth  bool
+	Username  string
+	Password  string
+	dialer    netproxy.Dialer
 }
 
 func NewHTTPProxy(u *url.URL, forward netproxy.Dialer) (netproxy.Dialer, error) {
 	s := new(HttpProxy)
-	s.Host = u.Host
+	s.Addr = u.Host
+	s.Path = u.Path
+	if !strings.HasPrefix(s.Path, "/") {
+		s.Path = "/" + s.Path
+	}
+	s.Host = u.Query().Get("host")
 	s.dialer = forward
 	if u.User != nil {
 		s.HaveAuth = true
 		s.Username = u.User.Username()
 		s.Password, _ = u.User.Password()
 	}
+	s.transport, _ = strconv.ParseBool(u.Query().Get("transport"))
 	if u.Scheme == "https" {
 		s.https = true
 		serverName := u.Query().Get("sni")
@@ -34,17 +46,21 @@ func NewHTTPProxy(u *url.URL, forward netproxy.Dialer) (netproxy.Dialer, error) 
 		}
 
 		tlsImplementation := "tls"
-		if u.Query().Has("tlsImplementation") {
+		if u.Query().Get("tlsImplementation") != "" {
 			tlsImplementation = u.Query().Get("tlsImplementation")
+		}
+		alpn := []string{"h2,http/1.1"}
+		if u.Query().Get("alpn") != "" {
+			alpn = []string{u.Query().Get("alpn")}
 		}
 		u := url.URL{
 			Scheme: tlsImplementation,
-			Host:   s.Host,
+			Host:   s.Addr,
 			RawQuery: url.Values{
 				"sni":           []string{serverName},
 				"allowInsecure": []string{u.Query().Get("allowInsecure")},
 				"utlsImitate":   []string{u.Query().Get("utlsImitate")},
-				"alpn":          []string{"h2", "http/1.1"},
+				"alpn":          alpn,
 			}.Encode(),
 		}
 		var err error
