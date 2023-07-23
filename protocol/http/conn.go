@@ -181,7 +181,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		} else if c.proxy.transport {
 			req.Host = "www.example.com"
 		}
-		req.URL.Path = c.proxy.Path
+		if c.proxy.transport {
+			req.URL.Path = c.proxy.Path
+		}
 		req.Close = false
 		if c.proxy.HaveAuth {
 			req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(c.proxy.Username+":"+c.proxy.Password)))
