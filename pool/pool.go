@@ -9,19 +9,19 @@ import (
 
 const (
 	// number of pools.
-	num     = 17
-	maxsize = 1 << (num - 1)
+	num          = 17
+	maxsize      = 1 << (num - 1)
+	minsizePower = 6
+	minsize      = 1 << minsizePower
 )
 
 var (
-	sizes [num]int
 	pools [num]sync.Pool
 )
 
 func init() {
-	for i := 0; i < num; i++ {
+	for i := minsizePower; i < num; i++ {
 		size := 1 << i
-		sizes[i] = size
 		pools[i].New = func() interface{} {
 			return make([]byte, size)
 		}
@@ -47,6 +47,9 @@ func GetBiggerClosestN(need int) (n int) {
 func Get(size int) PB {
 	if size >= 1 && size <= maxsize {
 		i := GetClosestN(size)
+		if i < minsizePower {
+			i = minsizePower
+		}
 		return pools[i].Get().([]byte)[:size]
 	}
 	return make([]byte, size)
@@ -61,6 +64,9 @@ func GetFullCap(size int) PB {
 func GetMustBigger(size int) PB {
 	if size >= 1 && size <= maxsize {
 		i := GetBiggerClosestN(size)
+		if i < minsizePower {
+			i = minsizePower
+		}
 		return pools[i].Get().([]byte)[:size]
 	}
 	return make([]byte, size)
