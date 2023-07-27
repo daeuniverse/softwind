@@ -1,4 +1,4 @@
-package trojanc
+package vless
 
 import (
 	"encoding/binary"
@@ -28,7 +28,7 @@ func CompleteMetadataFromReader(m *vmess.Metadata, first4 []byte, r io.Reader) (
 		}
 		m.Hostname = net.IP(buf).String()
 	case protocol.MetadataTypeDomain:
-		buf := pool.Get(1+255)
+		buf := pool.Get(1 + 255)
 		defer buf.Put()
 		if _, err = io.ReadFull(r, buf[:1]); err != nil {
 			return err

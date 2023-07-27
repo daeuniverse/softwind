@@ -1,21 +1,22 @@
 // protocol spec:
 // https://trojan-gfw.github.io/trojan/protocol
 
-package trojanc
+package vless
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol/vmess"
 	"io"
 	"net"
 	"net/netip"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/mzz2017/softwind/netproxy"
+	"github.com/mzz2017/softwind/pool"
+	"github.com/mzz2017/softwind/protocol/vmess"
 )
 
 var (
