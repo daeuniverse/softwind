@@ -38,9 +38,6 @@ func newClientRing(newClient func(capabilityCallback func(n int64)) *clientImpl,
 }
 
 func (r *clientRing) Dial(ctx context.Context, metadata *trojanc.Metadata, dialer netproxy.Dialer, dialFn common.DialFunc) (conn *Conn, err error) {
-	defer func() {
-		r.ring.Len()
-	}()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	newCurrent := r.current

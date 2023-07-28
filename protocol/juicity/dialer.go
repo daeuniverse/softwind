@@ -41,6 +41,9 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 	if reservedStreamsCapability < 1 {
 		reservedStreamsCapability = 1
 	}
+	if reservedStreamsCapability > 5 {
+		reservedStreamsCapability = 5
+	}
 	return &Dialer{
 		clientRing: newClientRing(func(capabilityCallback func(n int64)) *clientImpl {
 			return &clientImpl{
