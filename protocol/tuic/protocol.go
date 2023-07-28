@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/mzz2017/quic-go"
 	"github.com/mzz2017/softwind/protocol"
 )
@@ -31,8 +32,6 @@ const (
 	DissociateType   = CommandType(0x03)
 	HeartbeatType    = CommandType(0x04)
 )
-
-const VER byte = 0x05
 
 func (c CommandType) String() string {
 	switch c {
@@ -60,7 +59,7 @@ type CommandHead struct {
 	TYPE CommandType
 }
 
-func NewCommandHead(TYPE CommandType) *CommandHead {
+func NewCommandHead(TYPE CommandType, VER byte) *CommandHead {
 	return &CommandHead{
 		VER:  VER,
 		TYPE: TYPE,
@@ -105,15 +104,17 @@ func (c CommandHead) BytesLen() int {
 
 type Authenticate struct {
 	*CommandHead
-	UUID  [16]byte
+	UUID  uuid.UUID
 	TOKEN [32]byte
+	VER   byte
 }
 
-func NewAuthenticate(UUID [16]byte, TOKEN [32]byte) *Authenticate {
+func NewAuthenticate(UUID [16]byte, TOKEN [32]byte, VER byte) *Authenticate {
 	return &Authenticate{
-		CommandHead: NewCommandHead(AuthenticateType),
+		CommandHead: NewCommandHead(AuthenticateType, VER),
 		UUID:        UUID,
 		TOKEN:       TOKEN,
+		VER:         VER,
 	}
 }
 
@@ -125,11 +126,11 @@ func ReadAuthenticateWithHead(head *CommandHead, reader BufferedReader) (c *Auth
 	}
 	_, err = io.ReadFull(reader, _c.UUID[:])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read uuid: %w", err)
 	}
 	_, err = io.ReadFull(reader, _c.TOKEN[:])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read token: %w", err)
 	}
 	return &_c, nil
 }
@@ -177,9 +178,9 @@ type Connect struct {
 	ADDR *Address
 }
 
-func NewConnect(ADDR *Address) *Connect {
+func NewConnect(ADDR *Address, VER byte) *Connect {
 	return &Connect{
-		CommandHead: NewCommandHead(ConnectType),
+		CommandHead: NewCommandHead(ConnectType, VER),
 		ADDR:        ADDR,
 	}
 }
@@ -239,9 +240,9 @@ type Packet struct {
 	DATA       []byte
 }
 
-func NewPacket(ASSOC_ID uint16, PKT_ID uint16, FRGA_TOTAL uint8, FRAG_ID uint8, SIZE uint16, ADDR *Address, DATA []byte) *Packet {
+func NewPacket(ASSOC_ID uint16, PKT_ID uint16, FRGA_TOTAL uint8, FRAG_ID uint8, SIZE uint16, ADDR *Address, DATA []byte, VER byte) *Packet {
 	return &Packet{
-		CommandHead: NewCommandHead(PacketType),
+		CommandHead: NewCommandHead(PacketType, VER),
 		ASSOC_ID:    ASSOC_ID,
 		PKT_ID:      PKT_ID,
 		FRAG_ID:     FRAG_ID,
@@ -339,16 +340,16 @@ func (c Packet) BytesLen() int {
 	return c.CommandHead.BytesLen() + 4 + 2 + c.ADDR.BytesLen() + len(c.DATA)
 }
 
-var PacketOverHead = NewPacket(0, 0, 0, 0, 0, NewAddressAddrPort(netip.AddrPortFrom(netip.IPv6Unspecified(), 0)), nil).BytesLen()
+var PacketOverHead = NewPacket(0, 0, 0, 0, 0, NewAddressAddrPort(netip.AddrPortFrom(netip.IPv6Unspecified(), 0)), nil, 0).BytesLen()
 
 type Dissociate struct {
 	*CommandHead
 	ASSOC_ID uint16
 }
 
-func NewDissociate(ASSOC_ID uint16) *Dissociate {
+func NewDissociate(ASSOC_ID uint16, VER byte) *Dissociate {
 	return &Dissociate{
-		CommandHead: NewCommandHead(DissociateType),
+		CommandHead: NewCommandHead(DissociateType, VER),
 		ASSOC_ID:    ASSOC_ID,
 	}
 }
@@ -395,9 +396,9 @@ type Heartbeat struct {
 	*CommandHead
 }
 
-func NewHeartbeat() *Heartbeat {
+func NewHeartbeat(VER byte) *Heartbeat {
 	return &Heartbeat{
-		CommandHead: NewCommandHead(HeartbeatType),
+		CommandHead: NewCommandHead(HeartbeatType, VER),
 	}
 }
 

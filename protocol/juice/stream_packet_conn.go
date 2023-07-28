@@ -1,4 +1,4 @@
-package trojanc
+package juicity
 
 import (
 	"encoding/binary"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
+	"github.com/mzz2017/softwind/protocol/trojanc"
 )
 
 type PacketConn struct {
@@ -16,7 +17,7 @@ type PacketConn struct {
 }
 
 func (c *PacketConn) Write(b []byte) (int, error) {
-	return c.WriteTo(b, net.JoinHostPort(c.Conn.metadata.Hostname, strconv.Itoa(int(c.Conn.metadata.Port))))
+	return c.WriteTo(b, net.JoinHostPort(c.Conn.Metadata.Hostname, strconv.Itoa(int(c.Conn.Metadata.Port))))
 }
 
 func (c *PacketConn) Read(b []byte) (n int, err error) {
@@ -25,31 +26,32 @@ func (c *PacketConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *PacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {
-	buf := pool.Get(2)
-	defer buf.Put()
-	if _, err = io.ReadFull(c.Conn, buf[:1]); err != nil {
-		return 0, netip.AddrPort{}, err
-	}
-	m := Metadata{}
+	m := trojanc.Metadata{}
 	if _, err = m.Unpack(c.Conn); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-
 	if addr, err = m.AddrPort(); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
 
+	buf := pool.Get(2)
+	defer buf.Put()
 	if _, err = io.ReadFull(c.Conn, buf[:2]); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-	length := binary.BigEndian.Uint16(buf)
-	buf = pool.Get(2 + int(length))
-	defer buf.Put()
-	if _, err = io.ReadFull(c.Conn, buf); err != nil {
-		return 0, netip.AddrPort{}, err
+	length := int(binary.BigEndian.Uint16(buf))
+	if length <= len(p) {
+		if n, err = io.ReadFull(c.Conn, p[:length]); err != nil {
+			return 0, netip.AddrPort{}, err
+		}
+		return n, addr, nil
+	} else {
+		if n, err = io.ReadFull(c.Conn, p); err != nil {
+			return 0, netip.AddrPort{}, err
+		}
+		_, _ = io.CopyN(io.Discard, c.Conn, int64(length-len(p)))
+		return n, addr, nil
 	}
-	n = copy(p, buf[2:])
-	return n, addr, nil
 }
 
 func (c *PacketConn) WriteTo(p []byte, addr string) (n int, err error) {
@@ -57,11 +59,11 @@ func (c *PacketConn) WriteTo(p []byte, addr string) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	metadata := Metadata{
+	metadata := trojanc.Metadata{
 		Metadata: _metadata,
 		Network:  "udp",
 	}
-	buf := pool.Get(metadata.Len() + 4 + len(p))
+	buf := pool.Get(metadata.Len() + 2 + len(p))
 	defer pool.Put(buf)
 	SealUDP(metadata, buf, p)
 	_, err = c.Conn.Write(buf)
@@ -71,12 +73,15 @@ func (c *PacketConn) WriteTo(p []byte, addr string) (n int, err error) {
 	return len(p), nil
 }
 
-func SealUDP(metadata Metadata, dst []byte, data []byte) []byte {
+func (c *PacketConn) Close() error {
+	return c.Conn.Close()
+}
+
+func SealUDP(metadata trojanc.Metadata, dst []byte, data []byte) []byte {
 	n := metadata.Len()
 	// copy first to allow overlap
-	copy(dst[n+4:], data)
+	copy(dst[n+2:], data)
 	metadata.PackTo(dst)
 	binary.BigEndian.PutUint16(dst[n:], uint16(len(data)))
-	copy(dst[n+2:], CRLF)
-	return dst[:n+4+len(data)]
+	return dst[:n+2+len(data)]
 }

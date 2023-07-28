@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/mzz2017/quic-go"
+	"github.com/mzz2017/softwind/netproxy"
 )
 
-type quicStreamConn struct {
+type safeStreamConn struct {
 	quic.Stream
 	lock  sync.Mutex
 	lAddr net.Addr
@@ -18,80 +19,33 @@ type quicStreamConn struct {
 
 	closeOnce sync.Once
 	closeErr  error
-
-	muTimer            sync.Mutex
-	readDeadlineTimer  *time.Timer
-	writeDeadlineTimer *time.Timer
 }
 
-func (q *quicStreamConn) Write(p []byte) (n int, err error) {
+func (q *safeStreamConn) Write(p []byte) (n int, err error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	return q.Stream.Write(p)
 }
 
-func (q *quicStreamConn) Close() error {
+func (q *safeStreamConn) Close() error {
 	q.closeOnce.Do(func() {
 		q.closeErr = q.close()
 	})
 	return q.closeErr
 }
 
-func (q *quicStreamConn) SetDeadline(t time.Time) error {
-	_ = q.SetReadDeadline(t)
-	_ = q.SetWriteDeadline(t)
-	return nil
+func (s *safeStreamConn) CloseWrite() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	// As documented by the quic-go library, this doesn't actually close the entire stream.
+	// It prevents further writes, which in turn will result in an EOF signal being sent the other side of stream when
+	// reading.
+	// We can still read from this stream.
+	return s.Stream.Close()
 }
 
-func (q *quicStreamConn) SetReadDeadline(t time.Time) error {
-	q.muTimer.Lock()
-	defer q.muTimer.Unlock()
-	dur := time.Until(t)
-	if q.readDeadlineTimer != nil {
-		q.readDeadlineTimer.Reset(dur)
-	} else {
-		q.readDeadlineTimer = time.AfterFunc(dur, func() {
-			_ = q.Stream.SetReadDeadline(time.Now())
-			q.muTimer.Lock()
-			defer q.muTimer.Unlock()
-			q.lock.Lock()
-			defer q.lock.Unlock()
-			q.Stream.CancelRead(0)
-			q.readDeadlineTimer = nil
-		})
-	}
-	return nil
-}
-
-func (q *quicStreamConn) SetWriteDeadline(t time.Time) error {
-	q.muTimer.Lock()
-	defer q.muTimer.Unlock()
-	dur := time.Until(t)
-	if q.writeDeadlineTimer != nil {
-		q.writeDeadlineTimer.Reset(dur)
-	} else {
-		q.writeDeadlineTimer = time.AfterFunc(dur, func() {
-			_ = q.Stream.SetWriteDeadline(time.Now())
-			q.muTimer.Lock()
-			defer q.muTimer.Unlock()
-			q.lock.Lock()
-			defer q.lock.Unlock()
-			q.Stream.CancelWrite(0)
-			q.writeDeadlineTimer = nil
-		})
-	}
-	return nil
-}
-
-func (q *quicStreamConn) CloseWrite() error {
-	_ = q.Stream.SetWriteDeadline(time.Now())
-	q.lock.Lock()
-	defer q.lock.Unlock()
-	q.Stream.CancelWrite(0)
-	return nil
-}
-
-func (q *quicStreamConn) close() error {
+func (q *safeStreamConn) close() error {
 	if q.closeDeferFn != nil {
 		defer q.closeDeferFn()
 	}
@@ -110,16 +64,16 @@ func (q *quicStreamConn) close() error {
 	return q.Stream.Close()
 }
 
-func (q *quicStreamConn) LocalAddr() net.Addr {
+func (q *safeStreamConn) LocalAddr() net.Addr {
 	return q.lAddr
 }
 
-func (q *quicStreamConn) RemoteAddr() net.Addr {
+func (q *safeStreamConn) RemoteAddr() net.Addr {
 	return q.rAddr
 }
 
-var _ net.Conn = (*quicStreamConn)(nil)
+var _ netproxy.Conn = &safeStreamConn{}
 
-func NewQuicStreamConn(stream quic.Stream, lAddr, rAddr net.Addr, closeDeferFn func()) net.Conn {
-	return &quicStreamConn{Stream: stream, lAddr: lAddr, rAddr: rAddr, closeDeferFn: closeDeferFn}
+func NewSafeStreamConn(stream quic.Stream, lAddr, rAddr net.Addr, closeDeferFn func()) *safeStreamConn {
+	return &safeStreamConn{Stream: stream, lAddr: lAddr, rAddr: rAddr, closeDeferFn: closeDeferFn}
 }

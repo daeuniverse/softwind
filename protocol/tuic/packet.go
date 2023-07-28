@@ -17,21 +17,21 @@ import (
 	"github.com/mzz2017/softwind/protocol/tuic/common"
 )
 
-type packets struct {
+type Packets struct {
 	mu       sync.Mutex
 	list     *list.List
 	nonEmpty chan struct{}
 	closed   bool
 }
 
-func newPackets() *packets {
-	return &packets{
+func NewPackets() *Packets {
+	return &Packets{
 		list:     list.New().Init(),
 		nonEmpty: make(chan struct{}),
 	}
 }
 
-func (p *packets) PushBack(packet *Packet) {
+func (p *Packets) PushBack(packet *Packet) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.list.PushBack(packet)
@@ -42,7 +42,7 @@ func (p *packets) PushBack(packet *Packet) {
 	}
 }
 
-func (p *packets) PopFrontBlock() (packet *Packet, closed bool) {
+func (p *Packets) PopFrontBlock() (packet *Packet, closed bool) {
 	<-p.nonEmpty
 	if p.closed {
 		return nil, true
@@ -56,11 +56,11 @@ func (p *packets) PopFrontBlock() (packet *Packet, closed bool) {
 	return packet, false
 }
 
-func (p *packets) setEmpty() {
+func (p *Packets) setEmpty() {
 	p.nonEmpty = make(chan struct{})
 }
 
-func (p *packets) Close() error {
+func (p *Packets) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
@@ -82,7 +82,7 @@ type quicStreamPacketConn struct {
 
 	connId          uint16
 	quicConn        quic.Connection
-	incomingPackets *packets
+	incomingPackets *Packets
 
 	udpRelayMode          common.UdpRelayMode
 	maxUdpRelayPacketSize int
@@ -126,7 +126,7 @@ func (q *quicStreamPacketConn) close() (err error) {
 
 		buf := pool.GetBuffer()
 		defer pool.PutBuffer(buf)
-		err = NewDissociate(q.connId).WriteTo(buf)
+		err = NewDissociate(q.connId, Ver5).WriteTo(buf)
 		if err != nil {
 			return
 		}
@@ -226,7 +226,7 @@ func (q *quicStreamPacketConn) WriteTo(p []byte, addr string) (n int, err error)
 	}
 	address := NewAddress(&mdata)
 	pktId := uint16(fastrand.Uint32())
-	packet := NewPacket(q.connId, pktId, 1, 0, uint16(len(p)), address, p)
+	packet := NewPacket(q.connId, pktId, 1, 0, uint16(len(p)), address, p, Ver5)
 	switch q.udpRelayMode {
 	case common.QUIC:
 		err = packet.WriteTo(buf)

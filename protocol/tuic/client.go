@@ -20,6 +20,8 @@ import (
 	"github.com/mzz2017/softwind/protocol/tuic/common"
 )
 
+const Ver5 = 0x5
+
 type ClientOption struct {
 	TlsConfig             *tls.Config
 	QuicConfig            *quic.Config
@@ -110,7 +112,7 @@ func (t *clientImpl) sendAuthentication(quicConn quic.Connection) (err error) {
 	if err != nil {
 		return err
 	}
-	err = NewAuthenticate(t.Uuid, token).WriteTo(buf)
+	err = NewAuthenticate(t.Uuid, token, Ver5).WriteTo(buf)
 	if err != nil {
 		return err
 	}
@@ -141,7 +143,7 @@ func (t *clientImpl) handleUniStream(quicConn quic.Connection) (err error) {
 				t.deferQuicConn(quicConn, err)
 				if err != nil && assocId != 0 {
 					if val, loaded := t.udpIncomingPacketsMap.LoadAndDelete(assocId); loaded {
-						val.(*packets).Close()
+						val.(*Packets).Close()
 					}
 				}
 				stream.CancelRead(0)
@@ -162,7 +164,7 @@ func (t *clientImpl) handleUniStream(quicConn quic.Connection) (err error) {
 				if t.udp && t.UdpRelayMode == common.QUIC {
 					assocId = packet.ASSOC_ID
 					if val, ok := t.udpIncomingPacketsMap.Load(assocId); ok {
-						packets := val.(*packets)
+						packets := val.(*Packets)
 						packets.PushBack(packet)
 					}
 				}
@@ -187,7 +189,7 @@ func (t *clientImpl) handleMessage(quicConn quic.Connection) (err error) {
 				t.deferQuicConn(quicConn, err)
 				if err != nil && assocId != 0 {
 					if val, loaded := t.udpIncomingPacketsMap.LoadAndDelete(assocId); loaded {
-						val.(*packets).Close()
+						val.(*Packets).Close()
 					}
 				}
 			}()
@@ -206,7 +208,7 @@ func (t *clientImpl) handleMessage(quicConn quic.Connection) (err error) {
 				if t.udp && t.UdpRelayMode == common.NATIVE {
 					assocId = packet.ASSOC_ID
 					if val, ok := t.udpIncomingPacketsMap.Load(assocId); ok {
-						incomingPackets := val.(*packets)
+						incomingPackets := val.(*Packets)
 						incomingPackets.PushBack(packet)
 					}
 				}
@@ -259,15 +261,16 @@ func (t *clientImpl) forceClose(quicConn quic.Connection, err error) {
 			_ = quicConn.CloseWithError(ProtocolError, errStr)
 		}
 		t.udpIncomingPacketsMap.Range(func(key, value any) bool {
-			_ = value.(*packets).Close()
+			_ = value.(*Packets).Close()
 			t.udpIncomingPacketsMap.Delete(key)
 			return true
 		})
 	})
 }
 
-func (t *clientImpl) Close() {
+func (t *clientImpl) Close() error {
 	t.forceClose(nil, common.ErrClientClosed)
+	return nil
 }
 
 func (t *clientImpl) DialContextWithDialer(ctx context.Context, metadata *protocol.Metadata, dialer netproxy.Dialer, dialFn common.DialFunc) (netproxy.Conn, error) {
@@ -282,7 +285,7 @@ func (t *clientImpl) DialContextWithDialer(ctx context.Context, metadata *protoc
 		defer func() {
 			t.deferQuicConn(quicConn, err)
 		}()
-		connect := NewConnect(NewAddress(metadata))
+		connect := NewConnect(NewAddress(metadata), Ver5)
 		buf := pool.Get(connect.BytesLen())
 		defer buf.Put()
 		n := connect.WriteToBytes(buf)
@@ -293,7 +296,7 @@ func (t *clientImpl) DialContextWithDialer(ctx context.Context, metadata *protoc
 		if err != nil {
 			return nil, err
 		}
-		stream = common.NewQuicStreamConn(
+		stream = common.NewSafeStreamConn(
 			quicStream,
 			quicConn.LocalAddr(),
 			quicConn.RemoteAddr(),
@@ -322,7 +325,7 @@ func (t *clientImpl) ListenPacketWithDialer(ctx context.Context, metadata *proto
 	}
 
 	var connId uint16
-	incomingPackets := newPackets()
+	incomingPackets := NewPackets()
 	for {
 		connId = uint16(fastrand.Intn(0xFFFF))
 		_, loaded := t.udpIncomingPacketsMap.LoadOrStore(connId, incomingPackets)

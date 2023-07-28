@@ -8,11 +8,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pool"
 	"io"
 	"sync"
 	"time"
+
+	"github.com/mzz2017/softwind/netproxy"
+	"github.com/mzz2017/softwind/pool"
 )
 
 var (
@@ -100,26 +101,15 @@ func (c *Conn) ReadReqHeader() (err error) {
 	if !bytes.Equal(c.pass[:], buf[:56]) {
 		return FailAuthErr
 	}
-	if _, err = io.ReadFull(c.Conn, buf[:2]); err != nil {
+	if _, err = io.ReadFull(c.Conn, buf[:1]); err != nil {
 		return err
 	}
 	c.metadata.Network = ParseNetwork(buf[0])
-	c.metadata.Type = ParseMetadataType(buf[1])
 	n := c.metadata.Len()
 	if n < 2 {
 		return fmt.Errorf("invalid trojan header")
 	}
-	if n > cap(buf) {
-		buf = pool.Get(n)
-		defer pool.Put(buf)
-	} else {
-		buf = buf[:n]
-	}
-	buf[0] = MetadataTypeToByte(c.metadata.Type)
-	if _, err = io.ReadFull(c.Conn, buf[1:]); err != nil {
-		return err
-	}
-	if _, err = c.metadata.Unpack(buf); err != nil {
+	if _, err = c.metadata.Unpack(c.Conn); err != nil {
 		return err
 	}
 	return nil
