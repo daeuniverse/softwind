@@ -32,7 +32,7 @@ type clientImpl struct {
 
 	closed bool
 
-	onClose func()
+	detachCallback func()
 }
 
 func (t *clientImpl) getQuicConn(ctx context.Context, dialer netproxy.Dialer, dialFn common.DialFunc) (quic.Connection, error) {
@@ -91,9 +91,9 @@ func (t *clientImpl) Close() (err error) {
 		return
 	}
 	t.closed = true
-	if t.onClose != nil {
-		go t.onClose()
-		t.onClose = nil
+	if t.detachCallback != nil {
+		go t.detachCallback()
+		t.detachCallback = nil
 	}
 	t.connMutex.Unlock()
 	// Give 10s for closing.
@@ -118,6 +118,13 @@ func (t *clientImpl) Dial(ctx context.Context, metadata *trojanc.Metadata, diale
 	}
 	quicStream, err := quicConn.OpenStream()
 	if err != nil {
+		t.connMutex.Lock()
+		// Detach it from pool due to bad connection.
+		if t.detachCallback != nil {
+			go t.detachCallback()
+			t.detachCallback = nil
+		}
+		t.connMutex.Unlock()
 		return nil, fmt.Errorf("OpenStream: %w", err)
 	}
 	stream := NewConn(
@@ -129,5 +136,5 @@ func (t *clientImpl) Dial(ctx context.Context, metadata *trojanc.Metadata, diale
 }
 
 func (t *clientImpl) setOnClose(f func()) {
-	t.onClose = f
+	t.detachCallback = f
 }
