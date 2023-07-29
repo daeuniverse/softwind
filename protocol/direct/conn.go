@@ -1,9 +1,10 @@
 package direct
 
 import (
-	"github.com/mzz2017/softwind/common"
 	"net"
 	"net/netip"
+
+	"github.com/mzz2017/softwind/common"
 )
 
 type directPacketConn struct {
