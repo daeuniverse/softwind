@@ -1,4 +1,4 @@
-//go:build linux || darwin || dragonfly || freebsd || (js && wasm) || netbsd || openbsd
+//go:build linux || android || darwin || dragonfly || freebsd || (js && wasm) || netbsd || openbsd
 
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
@@ -9,9 +9,10 @@ package netproxy
 
 import (
 	"fmt"
-	"golang.org/x/sys/unix"
 	"runtime"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 var fwmarkIoctl int
@@ -39,4 +40,11 @@ func SoMarkControl(c syscall.RawConn, mark int) error {
 		return fmt.Errorf("error invoking socket control function: %w", controlErr)
 	}
 	return sockOptErr
+}
+
+func SoMark(fd int, mark int) error {
+	if err := syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, fwmarkIoctl, mark); err != nil {
+		return err
+	}
+	return nil
 }

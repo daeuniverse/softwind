@@ -3,10 +3,25 @@ package direct
 import (
 	"context"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
 	"net"
+	"runtime"
 	"syscall"
+
+	"github.com/mzz2017/softwind/netproxy"
 )
+
+var fwmarkIoctl int
+
+func init() {
+	switch runtime.GOOS {
+	case "linux", "android":
+		fwmarkIoctl = 36 /* unix.SO_MARK */
+	case "freebsd":
+		fwmarkIoctl = 0x1015 /* unix.SO_USER_COOKIE */
+	case "openbsd":
+		fwmarkIoctl = 0x1021 /* unix.SO_RTABLE */
+	}
+}
 
 var SymmetricDirect = newDirectDialer(false)
 var FullconeDirect = newDirectDialer(true)
@@ -62,7 +77,8 @@ func (d *directDialer) dialUdp(addr string, mark int) (c netproxy.PacketConn, er
 			return nil, err
 		}
 		defer f.Close()
-		if err = syscall.SetsockoptInt(int(f.Fd()), syscall.SOL_SOCKET, syscall.SO_MARK, mark); err != nil {
+
+		if err = netproxy.SoMark(int(f.Fd()), mark); err != nil {
 			return nil, err
 		}
 		return &directPacketConn{UDPConn: conn, FullCone: d.fullCone, dialTgt: addr, resolver: &net.Resolver{

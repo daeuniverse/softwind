@@ -14,3 +14,7 @@ import (
 func SoMarkControl(c syscall.RawConn, mark int) error {
 	return nil
 }
+
+func SoMark(fd int, mark int) error {
+	return nil
+}
