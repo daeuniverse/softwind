@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"net/netip"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -86,28 +84,6 @@ func (d *Dialer) DialUdp(addr string) (c netproxy.PacketConn, err error) {
 	return pktConn.(netproxy.PacketConn), nil
 }
 
-var uniqueFakeAddrPort = struct {
-	addr netip.Addr
-	port uint16
-	mu   sync.Mutex
-}{
-	addr: netip.MustParseAddr("::1"),
-	mu:   sync.Mutex{},
-}
-
-func getUniqueFakeAddrPort() (fake netip.AddrPort) {
-	uniqueFakeAddrPort.mu.Lock()
-	if uniqueFakeAddrPort.port == 65535 {
-		uniqueFakeAddrPort.addr = uniqueFakeAddrPort.addr.Next()
-		uniqueFakeAddrPort.port = 0
-	} else {
-		uniqueFakeAddrPort.port++
-	}
-	fake = netip.AddrPortFrom(uniqueFakeAddrPort.addr, uniqueFakeAddrPort.port)
-	uniqueFakeAddrPort.mu.Unlock()
-	return fake
-}
-
 func (d *Dialer) dialFuncFactory(udpNetwork string, rAddr net.Addr) common.DialFunc {
 	return func(ctx context.Context, dialer netproxy.Dialer) (transport *quic.Transport, addr net.Addr, err error) {
 		conn, err := dialer.Dial(udpNetwork, d.proxyAddress)
@@ -116,7 +92,7 @@ func (d *Dialer) dialFuncFactory(udpNetwork string, rAddr net.Addr) common.DialF
 		}
 		pc := &netproxy.FakeNetPacketConn{
 			PacketConn: conn.(netproxy.PacketConn),
-			LAddr:      net.UDPAddrFromAddrPort(getUniqueFakeAddrPort()),
+			LAddr:      net.UDPAddrFromAddrPort(common.GetUniqueFakeAddrPort()),
 			RAddr:      rAddr,
 		}
 		transport = &quic.Transport{Conn: pc}
