@@ -25,20 +25,16 @@ func (c *PacketConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *PacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {
-	buf := pool.Get(2)
-	defer buf.Put()
-	if _, err = io.ReadFull(c.Conn, buf[:1]); err != nil {
-		return 0, netip.AddrPort{}, err
-	}
 	m := Metadata{}
 	if _, err = m.Unpack(c.Conn); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-
 	if addr, err = m.AddrPort(); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
 
+	buf := pool.Get(2)
+	defer buf.Put()
 	if _, err = io.ReadFull(c.Conn, buf[:2]); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
