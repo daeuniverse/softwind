@@ -249,24 +249,29 @@ func NewBBRSender(
 	initialMaxCongestionWindow congestion.ByteCount,
 ) *bbrSender {
 	b := &bbrSender{
-		mode:                      STARTUP,
-		clock:                     clock,
-		sampler:                   NewBandwidthSampler(),
-		maxBandwidth:              NewWindowedFilter(int64(BandwidthWindowSize), MaxFilter),
-		maxAckHeight:              NewWindowedFilter(int64(BandwidthWindowSize), MaxFilter),
-		congestionWindow:          initialCongestionWindow,
-		initialCongestionWindow:   initialCongestionWindow,
-		highGain:                  DefaultHighGain,
-		highCwndGain:              DefaultHighGain,
-		drainGain:                 1.0 / DefaultHighGain,
-		pacingGain:                1.0,
-		congestionWindowGain:      1.0,
-		congestionWindowGainConst: DefaultCongestionWindowGainConst,
-		numStartupRtts:            RoundTripsWithoutGrowthBeforeExitingStartup,
-		recoveryState:             NOT_IN_RECOVERY,
-		recoveryWindow:            initialMaxCongestionWindow,
-		minRttSinceLastProbeRtt:   InfiniteRTT,
-		maxDatagramSize:           initialMaxDatagramSize,
+		mode:                              STARTUP,
+		clock:                             clock,
+		sampler:                           NewBandwidthSampler(),
+		maxBandwidth:                      NewWindowedFilter(int64(BandwidthWindowSize), MaxFilter),
+		maxAckHeight:                      NewWindowedFilter(int64(BandwidthWindowSize), MaxFilter),
+		congestionWindow:                  initialCongestionWindow,
+		initialCongestionWindow:           initialCongestionWindow,
+		highGain:                          DefaultHighGain,
+		highCwndGain:                      DefaultHighGain,
+		drainGain:                         1.0 / DefaultHighGain,
+		pacingGain:                        1.0,
+		congestionWindowGain:              1.0,
+		congestionWindowGainConst:         DefaultCongestionWindowGainConst,
+		numStartupRtts:                    RoundTripsWithoutGrowthBeforeExitingStartup,
+		recoveryState:                     NOT_IN_RECOVERY,
+		recoveryWindow:                    initialMaxCongestionWindow,
+		minRttSinceLastProbeRtt:           InfiniteRTT,
+		maxDatagramSize:                   initialMaxDatagramSize,
+		rateBasedStartup:                  true,
+		enableAckAggregationDuringStartup: true,
+		expireAckAggregationInStartup:     true,
+		probeRttBasedOnBdp:                true,
+		drainToTarget:                     true,
 	}
 	b.pacer = newPacer(b.BandwidthEstimate)
 	return b
@@ -373,7 +378,7 @@ func (b *bbrSender) OnPacketAcked(number congestion.PacketNumber, ackedBytes con
 }
 
 func (b *bbrSender) OnPacketLost(number congestion.PacketNumber, lostBytes congestion.ByteCount, priorInFlight congestion.ByteCount) {
-	eventTime := time.Now()
+	eventTime := b.clock.Now()
 	totalBytesAckedBefore := b.sampler.totalBytesAcked
 	isRoundStart, minRttExpired := false, false
 
@@ -574,7 +579,7 @@ func (b *bbrSender) UpdateBandwidthAndMinRtt(now time.Time, number congestion.Pa
 	if bandwidthSample.rtt > 0 {
 		sampleMinRtt = minRtt(sampleMinRtt, bandwidthSample.rtt)
 	}
-	if !bandwidthSample.stateAtSend.isAppLimited || bandwidthSample.bandwidth > b.BandwidthEstimate() {
+	if !bandwidthSample.stateAtSend.isAppLimited && bandwidthSample.bandwidth > Bandwidth(b.maxBandwidth.GetBest()) {
 		b.maxBandwidth.Update(int64(bandwidthSample.bandwidth), b.roundTripCount)
 	}
 
@@ -672,7 +677,7 @@ func (b *bbrSender) UpdateAckAggregationBytes(ackTime time.Time, ackedBytes cong
 	// Compute how many bytes are expected to be delivered, assuming max bandwidth
 	// is correct.
 	expectedAckedBytes := congestion.ByteCount(b.maxBandwidth.GetBest()) *
-		congestion.ByteCount((ackTime.Sub(b.aggregationEpochStartTime)))
+		congestion.ByteCount((ackTime.Sub(b.aggregationEpochStartTime).Microseconds() / 1e6))
 	// Reset the current aggregation epoch as soon as the ack arrival rate is less
 	// than or equal to the max bandwidth.
 	if b.aggregationEpochBytes <= expectedAckedBytes {
@@ -723,8 +728,8 @@ func (b *bbrSender) UpdateGainCyclePhase(now time.Time, priorInFlight congestion
 }
 
 func (b *bbrSender) GetTargetCongestionWindow(gain float64) congestion.ByteCount {
-	bdp := congestion.ByteCount(b.GetMinRtt()) * congestion.ByteCount(b.BandwidthEstimate())
-	congestionWindow := congestion.ByteCount(gain * float64(bdp))
+	bdp := congestion.ByteCount(b.GetMinRtt().Microseconds()) * congestion.ByteCount(b.maxBandwidth.GetBest())
+	congestionWindow := congestion.ByteCount(gain * float64(bdp) / 1e6)
 
 	// BDP estimate will be zero if no bandwidth samples are available yet.
 	if congestionWindow == 0 {
@@ -740,8 +745,8 @@ func (b *bbrSender) CheckIfFullBandwidthReached() {
 	}
 
 	target := Bandwidth(float64(b.bandwidthAtLastRound) * StartupGrowthTarget)
-	if b.BandwidthEstimate() >= target {
-		b.bandwidthAtLastRound = b.BandwidthEstimate()
+	if Bandwidth(b.maxBandwidth.GetBest()) >= target {
+		b.bandwidthAtLastRound = Bandwidth(b.maxBandwidth.GetBest())
 		b.roundsWithoutBandwidthGain = 0
 		if b.expireAckAggregationInStartup {
 			// Expire old excess delivery measurements now that bandwidth increased.
@@ -848,11 +853,11 @@ func (b *bbrSender) OnExitStartup(now time.Time) {
 }
 
 func (b *bbrSender) CalculatePacingRate() {
-	if b.BandwidthEstimate() == 0 {
+	if Bandwidth(b.maxBandwidth.GetBest()) == 0 {
 		return
 	}
 
-	targetRate := Bandwidth(b.pacingGain * float64(b.BandwidthEstimate()))
+	targetRate := Bandwidth(b.pacingGain * float64(Bandwidth(b.maxBandwidth.GetBest())))
 	if b.isAtFullBandwidth {
 		b.pacingRate = targetRate
 		return
@@ -867,7 +872,7 @@ func (b *bbrSender) CalculatePacingRate() {
 	// // Slow the pacing rate in STARTUP once loss has ever been detected.
 	// hasEverDetectedLoss := b.endRecoveryAt > 0
 	// if b.slowerStartup && hasEverDetectedLoss && b.hasNoAppLimitedSample {
-	// 	b.pacingRate = Bandwidth(StartupAfterLossGain * float64(b.BandwidthEstimate()))
+	// 	b.pacingRate = Bandwidth(StartupAfterLossGain * float64(Bandwidth(b.maxBandwidth.GetBest())))
 	// 	return
 	// }
 
@@ -876,7 +881,7 @@ func (b *bbrSender) CalculatePacingRate() {
 	// 	b.pacingRate = Bandwidth((1.0 - (float64(b.startupBytesLost) * float64(b.startupRateReductionMultiplier) / float64(b.congestionWindow))) * float64(targetRate))
 	// 	// Ensure the pacing rate doesn't drop below the startup growth target times
 	// 	// the bandwidth estimate.
-	// 	b.pacingRate = maxBandwidth(b.pacingRate, Bandwidth(StartupGrowthTarget*float64(b.BandwidthEstimate())))
+	// 	b.pacingRate = maxBandwidth(b.pacingRate, Bandwidth(StartupGrowthTarget*float64(Bandwidth(b.maxBandwidth.GetBest()))))
 	// 	return
 	// }
 
