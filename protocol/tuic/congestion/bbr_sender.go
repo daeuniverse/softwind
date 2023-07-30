@@ -14,10 +14,9 @@ import (
 
 const (
 	// InitialMaxDatagramSize is the default maximum packet size used in QUIC for congestion window computations in bytes.
-	InitialMaxDatagramSize        = 1252
-	InitialPacketSizeIPv4         = 1252
-	InitialPacketSizeIPv6         = 1232
-	DefaultBBRMaxCongestionWindow = 10240
+	InitialMaxDatagramSize = 1252
+	InitialPacketSizeIPv4  = 1252
+	InitialPacketSizeIPv6  = 1232
 )
 
 func GetInitialPacketSize(addr net.Addr) congestion.ByteCount {
@@ -270,10 +269,6 @@ func NewBBRSender(
 	return b
 }
 
-func (b *bbrSender) maxCongestionWindow() congestion.ByteCount {
-	return b.maxDatagramSize * DefaultBBRMaxCongestionWindow
-}
-
 func (b *bbrSender) minCongestionWindow() congestion.ByteCount {
 	return b.maxDatagramSize * b.initialCongestionWindow
 }
@@ -385,7 +380,7 @@ func (b *bbrSender) OnPacketLost(number congestion.PacketNumber, lostBytes conge
 
 	// Handle logic specific to PROBE_BW mode.
 	if b.mode == PROBE_BW {
-		b.UpdateGainCyclePhase(time.Now(), priorInFlight, true)
+		b.UpdateGainCyclePhase(time.Now(), priorInFlight, false)
 	}
 
 	// Handle logic specific to STARTUP and DRAIN modes.
@@ -913,7 +908,6 @@ func (b *bbrSender) CalculateCongestionWindow(ackedBytes, excessAcked congestion
 
 	// Enforce the limits on the congestion window.
 	b.congestionWindow = maxByteCount(b.congestionWindow, b.minCongestionWindow())
-	b.congestionWindow = minByteCount(b.congestionWindow, b.maxCongestionWindow())
 }
 
 func (b *bbrSender) CalculateRecoveryWindow(ackedBytes, lostBytes congestion.ByteCount) {
