@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/mzz2017/quic-go/congestion"
@@ -237,6 +238,8 @@ type bbrSender struct {
 	pacer *pacer
 
 	maxDatagramSize congestion.ByteCount
+
+	lossState uint64
 }
 
 func NewBBRSender(
@@ -347,7 +350,7 @@ func (b *bbrSender) OnPacketAcked(number congestion.PacketNumber, ackedBytes con
 
 	isRoundStart = b.UpdateRoundTripCounter(lastAckedPacket)
 	minRttExpired = b.UpdateBandwidthAndMinRtt(eventTime, number, ackedBytes)
-	b.UpdateRecoveryState(false, isRoundStart)
+	b.UpdateRecoveryState(atomic.LoadUint64(&b.lossState) > 0, isRoundStart)
 	bytesAcked := b.sampler.totalBytesAcked - totalBytesAckedBefore
 	excessAcked := b.UpdateAckAggregationBytes(eventTime, bytesAcked)
 
@@ -364,8 +367,9 @@ func (b *bbrSender) OnPacketAcked(number congestion.PacketNumber, ackedBytes con
 	// window.
 	b.CalculatePacingRate()
 	b.CalculateCongestionWindow(bytesAcked, excessAcked)
-	b.CalculateRecoveryWindow(bytesAcked, congestion.ByteCount(0))
+	b.CalculateRecoveryWindow(bytesAcked, congestion.ByteCount(atomic.LoadUint64(&b.lossState)))
 
+	atomic.StoreUint64(&b.lossState, 0)
 }
 
 func (b *bbrSender) OnPacketLost(number congestion.PacketNumber, lostBytes congestion.ByteCount, priorInFlight congestion.ByteCount) {
@@ -374,13 +378,14 @@ func (b *bbrSender) OnPacketLost(number congestion.PacketNumber, lostBytes conge
 	isRoundStart, minRttExpired := false, false
 
 	b.DiscardLostPackets(number, lostBytes)
+	atomic.AddUint64(&b.lossState, uint64(lostBytes))
 
 	// Input the new data into the BBR model of the connection.
 	var excessAcked congestion.ByteCount
 
 	// Handle logic specific to PROBE_BW mode.
 	if b.mode == PROBE_BW {
-		b.UpdateGainCyclePhase(time.Now(), priorInFlight, false)
+		b.UpdateGainCyclePhase(time.Now(), priorInFlight, atomic.LoadUint64(&b.lossState) > 0)
 	}
 
 	// Handle logic specific to STARTUP and DRAIN modes.

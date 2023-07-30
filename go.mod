@@ -20,6 +20,7 @@ require (
 	golang.org/x/net v0.12.0
 	golang.org/x/sys v0.10.0
 	google.golang.org/grpc v1.56.2
+	tailscale.com v1.46.1
 
 )
 
@@ -35,7 +36,6 @@ require (
 	github.com/onsi/ginkgo/v2 v2.11.0 // indirect
 	github.com/quic-go/qtls-go1-19 v0.3.2 // indirect
 	github.com/quic-go/qtls-go1-20 v0.2.2 // indirect
-	github.com/stretchr/testify v1.7.0 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/tools v0.11.0 // indirect
