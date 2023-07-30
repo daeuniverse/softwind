@@ -179,7 +179,10 @@ func (t *clientImpl) handleMessage(quicConn quic.Connection) (err error) {
 		t.deferQuicConn(quicConn, err)
 	}()
 	for {
-		message, err := quicConn.ReceiveMessage()
+		// TODO:
+		ctx, cancel := context.WithTimeout(context.TODO(), 3*time.Minute)
+		message, err := quicConn.ReceiveMessage(ctx)
+		cancel()
 		if err != nil {
 			return err
 		}
