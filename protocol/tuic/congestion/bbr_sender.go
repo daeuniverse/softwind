@@ -385,7 +385,7 @@ func (b *bbrSender) OnPacketLost(number congestion.PacketNumber, lostBytes conge
 
 	// Handle logic specific to PROBE_BW mode.
 	if b.mode == PROBE_BW {
-		b.UpdateGainCyclePhase(time.Now(), priorInFlight, atomic.LoadUint64(&b.lossState) > 0)
+		b.UpdateGainCyclePhase(eventTime, priorInFlight, atomic.LoadUint64(&b.lossState) > 0)
 	}
 
 	// Handle logic specific to STARTUP and DRAIN modes.

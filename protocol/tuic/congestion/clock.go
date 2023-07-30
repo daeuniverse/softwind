@@ -2,8 +2,6 @@ package congestion
 
 import (
 	"time"
-
-	"tailscale.com/tstime/mono"
 )
 
 // A Clock returns the current time
@@ -18,6 +16,6 @@ var _ Clock = DefaultClock{}
 
 // Now gets the current time
 func (DefaultClock) Now() time.Time {
-
-	return mono.Now().WallTime()
+	return time.Now()
+	// return mono.Now().WallTime()
 }
