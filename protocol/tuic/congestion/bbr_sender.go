@@ -864,21 +864,21 @@ func (b *bbrSender) CalculatePacingRate() {
 		b.pacingRate = BandwidthFromDelta(b.initialCongestionWindow, b.rttStats.MinRTT())
 		return
 	}
-	// Slow the pacing rate in STARTUP once loss has ever been detected.
-	hasEverDetectedLoss := b.endRecoveryAt > 0
-	if b.slowerStartup && hasEverDetectedLoss && b.hasNoAppLimitedSample {
-		b.pacingRate = Bandwidth(StartupAfterLossGain * float64(b.BandwidthEstimate()))
-		return
-	}
+	// // Slow the pacing rate in STARTUP once loss has ever been detected.
+	// hasEverDetectedLoss := b.endRecoveryAt > 0
+	// if b.slowerStartup && hasEverDetectedLoss && b.hasNoAppLimitedSample {
+	// 	b.pacingRate = Bandwidth(StartupAfterLossGain * float64(b.BandwidthEstimate()))
+	// 	return
+	// }
 
-	// Slow the pacing rate in STARTUP by the bytes_lost / CWND.
-	if b.startupRateReductionMultiplier != 0 && hasEverDetectedLoss && b.hasNoAppLimitedSample {
-		b.pacingRate = Bandwidth((1.0 - (float64(b.startupBytesLost) * float64(b.startupRateReductionMultiplier) / float64(b.congestionWindow))) * float64(targetRate))
-		// Ensure the pacing rate doesn't drop below the startup growth target times
-		// the bandwidth estimate.
-		b.pacingRate = maxBandwidth(b.pacingRate, Bandwidth(StartupGrowthTarget*float64(b.BandwidthEstimate())))
-		return
-	}
+	// // Slow the pacing rate in STARTUP by the bytes_lost / CWND.
+	// if b.startupRateReductionMultiplier != 0 && hasEverDetectedLoss && b.hasNoAppLimitedSample {
+	// 	b.pacingRate = Bandwidth((1.0 - (float64(b.startupBytesLost) * float64(b.startupRateReductionMultiplier) / float64(b.congestionWindow))) * float64(targetRate))
+	// 	// Ensure the pacing rate doesn't drop below the startup growth target times
+	// 	// the bandwidth estimate.
+	// 	b.pacingRate = maxBandwidth(b.pacingRate, Bandwidth(StartupGrowthTarget*float64(b.BandwidthEstimate())))
+	// 	return
+	// }
 
 	// Do not decrease the pacing rate during startup.
 	b.pacingRate = maxBandwidth(b.pacingRate, targetRate)
