@@ -1,6 +1,7 @@
 package netproxy
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
 	"time"
@@ -64,4 +65,18 @@ func (conn *FakeNetPacketConn) LocalAddr() net.Addr {
 }
 func (conn *FakeNetPacketConn) RemoteAddr() net.Addr {
 	return conn.RAddr
+}
+func (conn *FakeNetPacketConn) SetWriteBuffer(size int) error {
+	c, ok := conn.PacketConn.(interface{ SetWriteBuffer(int) error })
+	if !ok {
+		return fmt.Errorf("connection doesn't allow setting of send buffer size. Not a *net.UDPConn?")
+	}
+	return c.SetWriteBuffer(size)
+}
+func (conn *FakeNetPacketConn) SetReadBuffer(size int) error {
+	c, ok := conn.PacketConn.(interface{ SetReadBuffer(int) error })
+	if !ok {
+		return fmt.Errorf("connection doesn't allow setting of send buffer size. Not a *net.UDPConn?")
+	}
+	return c.SetReadBuffer(size)
 }
