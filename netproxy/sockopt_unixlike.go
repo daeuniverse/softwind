@@ -28,7 +28,8 @@ func init() {
 	}
 }
 
-func SoMarkControl(c syscall.RawConn, mark int) error {
+// SoMarkControl is replacable. Replacibility is useful for Android.
+var SoMarkControl = func(c syscall.RawConn, mark int) error {
 	var sockOptErr error
 	controlErr := c.Control(func(fd uintptr) {
 		err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, fwmarkIoctl, mark)
@@ -42,7 +43,8 @@ func SoMarkControl(c syscall.RawConn, mark int) error {
 	return sockOptErr
 }
 
-func SoMark(fd int, mark int) error {
+// SoMark is replacable. Replacibility is useful for Android.
+var SoMark = func(fd int, mark int) error {
 	if err := syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, fwmarkIoctl, mark); err != nil {
 		return err
 	}

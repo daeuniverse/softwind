@@ -11,10 +11,12 @@ import (
 	"syscall"
 )
 
-func SoMarkControl(c syscall.RawConn, mark int) error {
+// SoMarkControl is replacable.
+var SoMarkControl = func(c syscall.RawConn, mark int) error {
 	return nil
 }
 
-func SoMark(fd int, mark int) error {
+// SoMark is replacable.
+var SoMark = func(fd int, mark int) error {
 	return nil
 }
