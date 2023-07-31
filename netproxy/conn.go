@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"syscall"
 	"time"
 )
 
@@ -79,4 +80,13 @@ func (conn *FakeNetPacketConn) SetReadBuffer(size int) error {
 		return fmt.Errorf("connection doesn't allow setting of send buffer size. Not a *net.UDPConn?")
 	}
 	return c.SetReadBuffer(size)
+}
+func (conn *FakeNetPacketConn) SyscallConn() (syscall.RawConn, error) {
+	c, ok := conn.PacketConn.(interface {
+		SyscallConn() (syscall.RawConn, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("connection doesn't allow to get Syscall.RawConn. Not a *net.UDPConn?")
+	}
+	return c.SyscallConn()
 }

@@ -68,11 +68,3 @@ func (c *directPacketConn) Read(b []byte) (int, error) {
 	n, _, err := c.UDPConn.ReadFrom(b)
 	return n, err
 }
-
-func (c *directPacketConn) SetWriteBuffer(size int) error {
-	return c.UDPConn.SetWriteBuffer(size)
-}
-
-func (c *directPacketConn) SetReadBuffer(size int) error {
-	return c.UDPConn.SetReadBuffer(size)
-}
