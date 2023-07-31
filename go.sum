@@ -38,8 +38,8 @@ github.com/klauspost/compress v1.16.7 h1:2mk3MPGNzKyxErAw8YaohYh69+pa4sIQSC0fPGC
 github.com/klauspost/compress v1.16.7/go.mod h1:ntbaceVETuRiXiv4DpjP66DpAtAGkEQskQzEyD//IeE=
 github.com/mzz2017/disk-bloom v1.0.1 h1:rEF9MiXd9qMW3ibRpqcerLXULoTgRlM21yqqJl1B90M=
 github.com/mzz2017/disk-bloom v1.0.1/go.mod h1:JLHETtUu44Z6iBmsqzkOtFlRvXSlKnxjwiBRDapizDI=
-github.com/mzz2017/quic-go v0.0.0-20230730161358-da6d530ddb18 h1:SzaoU9jIglF82Qp2rmPhsXhdtgOYiTwmxbd85qa5+Gs=
-github.com/mzz2017/quic-go v0.0.0-20230730161358-da6d530ddb18/go.mod h1:+8o4sdYYZCkNfMGiP3oKstpdHeSDFJy84A68evIzhw4=
+github.com/mzz2017/quic-go v0.0.0-20230731141244-f455a937ce44 h1:TTbJYaAodM6y3UMA3kSasPLdwJGazHwJ3SmpvQSey1I=
+github.com/mzz2017/quic-go v0.0.0-20230731141244-f455a937ce44/go.mod h1:+8o4sdYYZCkNfMGiP3oKstpdHeSDFJy84A68evIzhw4=
 github.com/onsi/ginkgo/v2 v2.11.0 h1:WgqUCUt/lT6yXoQ8Wef0fsNn5cAuMK7+KT9UFRz2tcU=
 github.com/onsi/ginkgo/v2 v2.11.0/go.mod h1:ZhrRA5XmEE3x3rhlzamx/JJvujdZoJ2uvgI7kR0iZvM=
 github.com/onsi/gomega v1.27.8 h1:gegWiwZjBsf2DgiSbf5hpokZ98JVDMcWkUiigk6/KXc=
