@@ -11,7 +11,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.0
 	github.com/mzz2017/disk-bloom v1.0.1
-	github.com/mzz2017/quic-go v0.0.0-20230731150147-39ba789c9620
+	github.com/mzz2017/quic-go v0.0.0-20230731153658-2aabc7c97220
 	github.com/refraction-networking/utls v1.3.2
 	github.com/seiflotfy/cuckoofilter v0.0.0-20220411075957-e3b120b3f5fb
 	gitlab.com/yawning/chacha20.git v0.0.0-20230427033715-7877545b1b37
