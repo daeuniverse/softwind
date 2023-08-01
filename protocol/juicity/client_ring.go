@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/protocol/trojanc"
@@ -42,7 +43,8 @@ func (r *clientRing) Dial(ctx context.Context, metadata *trojanc.Metadata, diale
 	defer r.mu.Unlock()
 	newCurrent := r.current
 	err = r._tryNext(&newCurrent, func(node *clientRingNode) error {
-		if node.capability != -1 && node.capability <= r.reserved {
+		cap := atomic.LoadInt64(&node.capability)
+		if cap != -1 && cap <= r.reserved {
 			return common.ErrHoldOn
 		}
 		conn, err = node.cli.Dial(ctx, metadata, dialer, dialFn)
@@ -89,7 +91,7 @@ getNew:
 		cli:        nil,
 		capability: -1,
 	}
-	newCli := r.newClient(func(n int64) { newNode.capability = n })
+	newCli := r.newClient(func(n int64) { atomic.StoreInt64(&newNode.capability, n) })
 	newNode.cli = newCli
 	r.current = r._insertAfterCurrent(newNode)
 	*current = r.current

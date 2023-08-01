@@ -2,10 +2,12 @@ package juicity
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
 	"strconv"
+	"sync"
 
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
@@ -14,6 +16,7 @@ import (
 
 type PacketConn struct {
 	*Conn
+	domainIpMapping sync.Map
 }
 
 func (c *PacketConn) Write(b []byte) (int, error) {
@@ -25,13 +28,28 @@ func (c *PacketConn) Read(b []byte) (n int, err error) {
 	return n, err
 }
 
-func (c *PacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {
+func (c *PacketConn) ReadFrom(p []byte) (n int, addrPort netip.AddrPort, err error) {
 	m := trojanc.Metadata{}
 	if _, err = m.Unpack(c.Conn); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-	if addr, err = m.AddrPort(); err != nil {
-		return 0, netip.AddrPort{}, err
+	if m.Type == protocol.MetadataTypeDomain {
+		if _addr, ok := c.domainIpMapping.Load(m.Hostname); ok {
+			addrPort = netip.AddrPortFrom(_addr.(netip.Addr), m.Port)
+		} else {
+			uAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(m.Hostname, strconv.Itoa(int(m.Port))))
+			if err != nil {
+				return 0, netip.AddrPort{}, err
+			}
+			addrPort = uAddr.AddrPort()
+			if _addr, ok = c.domainIpMapping.LoadOrStore(m.Hostname, addrPort.Addr()); ok {
+				addrPort = netip.AddrPortFrom(_addr.(netip.Addr), m.Port)
+			}
+		}
+	} else {
+		if addrPort, err = m.AddrPort(); err != nil {
+			return 0, netip.AddrPort{}, fmt.Errorf("ReadFrom AddrPort:", err)
+		}
 	}
 
 	buf := pool.Get(2)
@@ -44,13 +62,13 @@ func (c *PacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) 
 		if n, err = io.ReadFull(c.Conn, p[:length]); err != nil {
 			return 0, netip.AddrPort{}, err
 		}
-		return n, addr, nil
+		return n, addrPort, nil
 	} else {
 		if n, err = io.ReadFull(c.Conn, p); err != nil {
 			return 0, netip.AddrPort{}, err
 		}
 		_, _ = io.CopyN(io.Discard, c.Conn, int64(length-len(p)))
-		return n, addr, nil
+		return n, addrPort, nil
 	}
 }
 
