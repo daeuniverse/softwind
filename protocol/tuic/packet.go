@@ -249,14 +249,14 @@ func (q *quicStreamPacketConn) WriteTo(p []byte, addr string) (n int, err error)
 			if err != nil {
 				return
 			}
+		} else {
+			err = packet.WriteTo(buf)
+			if err != nil {
+				return
+			}
+			data := buf.Bytes()
+			err = q.quicConn.SendMessage(data)
 		}
-		err = packet.WriteTo(buf)
-		if err != nil {
-			return
-		}
-		data := buf.Bytes()
-		err = q.quicConn.SendMessage(data)
-
 		var tooLarge quic.ErrMessageTooLarge
 		if errors.As(err, &tooLarge) {
 			err = fragWriteNative(q.quicConn, packet, buf, int(tooLarge)-PacketOverHead)
