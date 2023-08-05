@@ -3,7 +3,6 @@ package tuic
 import (
 	"context"
 	"fmt"
-	"math"
 	"net"
 	"time"
 
@@ -36,13 +35,6 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 		return nil, fmt.Errorf("parse UUID: %w", err)
 	}
 	// ensure server's incoming stream can handle correctly, increase to 1.1x
-	maxOpenIncomingStreams := int64(100)
-	quicMaxOpenIncomingStreams := int64(maxOpenIncomingStreams)
-	quicMaxOpenIncomingStreams = quicMaxOpenIncomingStreams + int64(math.Ceil(float64(quicMaxOpenIncomingStreams)/10.0))
-	reservedStreamsCapability := maxOpenIncomingStreams / 5
-	if reservedStreamsCapability < 1 {
-		reservedStreamsCapability = 1
-	}
 	maxDatagramFrameSize := 1400
 	udpRelayMode := common.NATIVE
 	if header.Flags&protocol.Flags_Tuic_UdpRelayModeQuic > 0 {
@@ -59,8 +51,6 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 						MaxStreamReceiveWindow:         common.MaxStreamReceiveWindow,
 						InitialConnectionReceiveWindow: common.InitialConnectionReceiveWindow,
 						MaxConnectionReceiveWindow:     common.MaxConnectionReceiveWindow,
-						MaxIncomingStreams:             quicMaxOpenIncomingStreams,
-						MaxIncomingUniStreams:          quicMaxOpenIncomingStreams,
 						KeepAlivePeriod:                3 * time.Second,
 						DisablePathMTUDiscovery:        false,
 						MaxDatagramFrameSize:           int64(maxDatagramFrameSize + PacketOverHead),
@@ -78,7 +68,7 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 				},
 				udp: true,
 			}
-		}, reservedStreamsCapability),
+		}, 10),
 		proxyAddress: header.ProxyAddress,
 		nextDialer:   nextDialer,
 		metadata:     metadata,

@@ -52,8 +52,6 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 						MaxStreamReceiveWindow:         common.MaxStreamReceiveWindow,
 						InitialConnectionReceiveWindow: common.InitialConnectionReceiveWindow,
 						MaxConnectionReceiveWindow:     common.MaxConnectionReceiveWindow,
-						MaxIncomingStreams:             quicMaxOpenIncomingStreams,
-						MaxIncomingUniStreams:          quicMaxOpenIncomingStreams,
 						KeepAlivePeriod:                5 * time.Second,
 						DisablePathMTUDiscovery:        false,
 						EnableDatagrams:                true,
