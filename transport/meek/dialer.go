@@ -31,6 +31,14 @@ func NewDialer(s string, d netproxy.Dialer) (*Dialer, error) {
 		return nil, fmt.Errorf("NewMeek: url is empty")
 	}
 
+	meekUrl, err := url.Parse(m.url)
+	if err != nil {
+		return nil, fmt.Errorf("NewMeek: %w", err)
+	}
+	if meekUrl.Scheme != "https" {
+		return nil, fmt.Errorf("NewMeek: unimplemented backdrop")
+	}
+
 	return m, nil
 }
 
