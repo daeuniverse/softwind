@@ -2,10 +2,11 @@ package shadowsocks_stream
 
 import (
 	"fmt"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pool"
 	"io"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pool"
 )
 
 // TcpConn the struct that override the netproxy.Conn methods

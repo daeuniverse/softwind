@@ -3,11 +3,12 @@ package proto
 import (
 	"bytes"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol/shadowsocks_stream"
 	"io"
 	"sync"
+
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol/shadowsocks_stream"
 )
 
 type Conn struct {
@@ -16,8 +17,8 @@ type Conn struct {
 	underPostdecryptBuf *bytes.Buffer
 	readLater           io.Reader
 
-	writeMu    sync.Mutex
-	readMu     sync.Mutex
+	writeMu sync.Mutex
+	readMu  sync.Mutex
 }
 
 func NewConn(c netproxy.Conn, proto IProtocol) (*Conn, error) {

@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/mzz2017/quic-go/congestion"
-	"github.com/mzz2017/softwind/pkg/fastrand"
 )
 
 const (

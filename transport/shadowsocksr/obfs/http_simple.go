@@ -3,9 +3,10 @@ package obfs
 import (
 	"bytes"
 	"fmt"
-	rand "github.com/mzz2017/softwind/pkg/fastrand"
-	"github.com/mzz2017/softwind/pool"
 	"strings"
+
+	rand "github.com/daeuniverse/softwind/pkg/fastrand"
+	"github.com/daeuniverse/softwind/pool"
 )
 
 var (

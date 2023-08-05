@@ -2,8 +2,9 @@ package protocol
 
 import (
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
 	"strconv"
+
+	"github.com/daeuniverse/softwind/netproxy"
 )
 
 type Creator func(nextDialer netproxy.Dialer, header Header) (netproxy.Dialer, error)

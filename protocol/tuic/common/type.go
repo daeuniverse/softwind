@@ -6,9 +6,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/protocol"
 	"github.com/mzz2017/quic-go"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/protocol"
 )
 
 var (

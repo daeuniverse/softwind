@@ -3,8 +3,9 @@ package vmess
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/mzz2017/softwind/protocol"
 	"net"
+
+	"github.com/daeuniverse/softwind/protocol"
 )
 
 func ParseMetadataType(t byte) protocol.MetadataType {

@@ -8,9 +8,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/protocol/trojanc"
-	"github.com/mzz2017/softwind/protocol/tuic/common"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/protocol/trojanc"
+	"github.com/daeuniverse/softwind/protocol/tuic/common"
 )
 
 type clientRing struct {

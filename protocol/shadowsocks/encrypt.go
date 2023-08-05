@@ -3,10 +3,11 @@ package shadowsocks
 import (
 	"crypto/sha1"
 	"fmt"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/pool"
-	"golang.org/x/crypto/hkdf"
 	"io"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/pool"
+	"golang.org/x/crypto/hkdf"
 )
 
 // EncryptUDPFromPool returns shadowBytes from pool.

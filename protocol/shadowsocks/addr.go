@@ -3,10 +3,11 @@ package shadowsocks
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
 	"io"
 	"net"
+
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol"
 )
 
 func ParseMetadataType(t byte) protocol.MetadataType {

@@ -2,14 +2,15 @@ package shadowsocks
 
 import (
 	"fmt"
-	disk_bloom "github.com/mzz2017/disk-bloom"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
 	"net"
 	"net/netip"
 	"strconv"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol"
+	disk_bloom "github.com/mzz2017/disk-bloom"
 )
 
 type UdpConn struct {

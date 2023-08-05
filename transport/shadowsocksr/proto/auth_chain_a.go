@@ -9,15 +9,16 @@ import (
 	"crypto/rc4"
 	"encoding/base64"
 	"encoding/binary"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/common"
-	rand "github.com/mzz2017/softwind/pkg/fastrand"
-	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/transport/shadowsocksr/internal/crypto"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/common"
+	rand "github.com/daeuniverse/softwind/pkg/fastrand"
+	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
 
 func init() {

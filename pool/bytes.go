@@ -1,6 +1,6 @@
 package pool
 
-import "github.com/mzz2017/softwind/common"
+import "github.com/daeuniverse/softwind/common"
 
 type Bytes interface {
 	Put()

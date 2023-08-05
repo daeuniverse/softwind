@@ -3,10 +3,11 @@ package obfs
 import (
 	"bytes"
 	"fmt"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/netproxy"
 	"io"
 	"sync"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/netproxy"
 )
 
 type Conn struct {

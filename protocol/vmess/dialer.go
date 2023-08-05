@@ -3,11 +3,11 @@ package vmess
 import (
 	"fmt"
 
+	"github.com/daeuniverse/softwind/common"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/protocol"
+	"github.com/daeuniverse/softwind/transport/grpc"
 	"github.com/google/uuid"
-	"github.com/mzz2017/softwind/common"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/transport/grpc"
 )
 
 func init() {

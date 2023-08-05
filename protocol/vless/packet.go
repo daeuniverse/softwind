@@ -3,9 +3,10 @@ package trojanc
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/mzz2017/softwind/pool"
 	"io"
 	"net/netip"
+
+	"github.com/daeuniverse/softwind/pool"
 )
 
 func (c *Conn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {

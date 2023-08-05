@@ -2,8 +2,9 @@ package protocol
 
 import (
 	"fmt"
-	"github.com/mzz2017/softwind/common"
 	"strings"
+
+	"github.com/daeuniverse/softwind/common"
 )
 
 var (

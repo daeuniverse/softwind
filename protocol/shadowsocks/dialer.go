@@ -2,10 +2,11 @@ package shadowsocks
 
 import (
 	"fmt"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/common"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/protocol"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/common"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/protocol"
 )
 
 func init() {

@@ -3,10 +3,11 @@ package proto
 import (
 	"errors"
 	"fmt"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/protocol/infra/socks"
-	"github.com/mzz2017/softwind/protocol/shadowsocks_stream"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/protocol/infra/socks"
+	"github.com/daeuniverse/softwind/protocol/shadowsocks_stream"
 )
 
 type Dialer struct {

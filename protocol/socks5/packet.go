@@ -5,12 +5,13 @@ package socks5
 import (
 	"errors"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
 	"net"
 	"net/netip"
 
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol/infra/socks"
+	"github.com/daeuniverse/softwind/netproxy"
+
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol/infra/socks"
 )
 
 // PktConn .

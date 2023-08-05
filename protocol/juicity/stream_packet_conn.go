@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/protocol/trojanc"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol"
+	"github.com/daeuniverse/softwind/protocol/trojanc"
 )
 
 type PacketConn struct {

@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mzz2017/softwind/netproxy"
+	"github.com/daeuniverse/softwind/netproxy"
 	"golang.org/x/net/http2"
 )
 

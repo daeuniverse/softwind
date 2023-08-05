@@ -3,9 +3,10 @@ package buffer
 import (
 	"bytes"
 	"errors"
-	"github.com/mzz2017/softwind/pool"
 	"io"
 	"unicode/utf8"
+
+	"github.com/daeuniverse/softwind/pool"
 )
 
 // Copyright 2009 The Go Authors. All rights reserved.

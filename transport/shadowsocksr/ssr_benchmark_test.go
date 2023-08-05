@@ -2,15 +2,16 @@ package shadowsocksr
 
 import (
 	"bytes"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/protocol/direct"
-	"github.com/mzz2017/softwind/protocol/shadowsocks_stream"
-	"github.com/mzz2017/softwind/transport/shadowsocksr/obfs"
-	"github.com/mzz2017/softwind/transport/shadowsocksr/proto"
 	"net"
 	"net/http"
 	"testing"
+
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/protocol"
+	"github.com/daeuniverse/softwind/protocol/direct"
+	"github.com/daeuniverse/softwind/protocol/shadowsocks_stream"
+	"github.com/daeuniverse/softwind/transport/shadowsocksr/obfs"
+	"github.com/daeuniverse/softwind/transport/shadowsocksr/proto"
 )
 
 func BenchmarkSSR(b *testing.B) {

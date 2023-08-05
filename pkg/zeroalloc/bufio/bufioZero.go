@@ -13,10 +13,11 @@ package bufio
 import (
 	"bytes"
 	"errors"
-	"github.com/mzz2017/softwind/pool"
 	"io"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/daeuniverse/softwind/pool"
 )
 
 const (

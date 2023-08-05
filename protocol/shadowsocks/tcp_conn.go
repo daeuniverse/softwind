@@ -5,19 +5,20 @@ import (
 	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
-	disk_bloom "github.com/mzz2017/disk-bloom"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/common"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
-	"golang.org/x/crypto/hkdf"
 	"hash"
 	"hash/fnv"
 	"io"
 	"math"
 	"sync"
 	"time"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/common"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol"
+	disk_bloom "github.com/mzz2017/disk-bloom"
+	"golang.org/x/crypto/hkdf"
 )
 
 const (

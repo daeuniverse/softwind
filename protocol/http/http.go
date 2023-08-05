@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mzz2017/softwind/netproxy"
-	tls2 "github.com/mzz2017/softwind/transport/tls"
+	"github.com/daeuniverse/softwind/netproxy"
+	tls2 "github.com/daeuniverse/softwind/transport/tls"
 )
 
 // HttpProxy is an HTTP/HTTPS proxy.

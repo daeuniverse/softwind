@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/mzz2017/softwind/common"
+	"github.com/daeuniverse/softwind/common"
 )
 
 type directPacketConn struct {

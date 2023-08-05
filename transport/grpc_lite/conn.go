@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
 	"io"
 	"net"
 	"net/http"
@@ -14,8 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"ekyu.moe/leb128"
+	"github.com/daeuniverse/softwind/netproxy"
+
 	"encoding/binary"
+
+	"ekyu.moe/leb128"
 	"golang.org/x/net/http2"
 )
 

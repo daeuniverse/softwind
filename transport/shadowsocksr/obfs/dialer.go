@@ -3,7 +3,8 @@ package obfs
 import (
 	"errors"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
+
+	"github.com/daeuniverse/softwind/netproxy"
 )
 
 type Dialer struct {

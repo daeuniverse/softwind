@@ -3,7 +3,7 @@ package bufferred_conn
 import (
 	"net"
 
-	"github.com/mzz2017/softwind/pkg/zeroalloc/bufio"
+	"github.com/daeuniverse/softwind/pkg/zeroalloc/bufio"
 )
 
 type BufferedConn struct {

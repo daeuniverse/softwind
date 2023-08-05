@@ -3,8 +3,9 @@ package trojanc
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/mzz2017/softwind/common"
 	"strings"
+
+	"github.com/daeuniverse/softwind/common"
 )
 
 func Password2Key(password string) (id []byte, err error) {

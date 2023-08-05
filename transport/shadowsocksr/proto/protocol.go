@@ -1,10 +1,11 @@
 package proto
 
 import (
-	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/transport/shadowsocksr/internal/crypto"
 	"strings"
+
+	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
 
 type creator func() IProtocol

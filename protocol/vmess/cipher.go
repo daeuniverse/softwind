@@ -8,15 +8,16 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"github.com/mzz2017/softwind/common"
-	"github.com/mzz2017/softwind/pkg/fastrand"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
-	"golang.org/x/crypto/chacha20poly1305"
 	"hash"
 	"hash/crc32"
 	"hash/fnv"
 	"time"
+
+	"github.com/daeuniverse/softwind/common"
+	"github.com/daeuniverse/softwind/pkg/fastrand"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol"
+	"golang.org/x/crypto/chacha20poly1305"
 )
 
 const (

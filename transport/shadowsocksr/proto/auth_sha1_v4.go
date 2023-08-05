@@ -3,12 +3,13 @@ package proto
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/mzz2017/softwind/common"
-	rand "github.com/mzz2017/softwind/pkg/fastrand"
-	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/transport/shadowsocksr/internal/crypto"
 	"time"
+
+	"github.com/daeuniverse/softwind/common"
+	rand "github.com/daeuniverse/softwind/pkg/fastrand"
+	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
 
 func init() {

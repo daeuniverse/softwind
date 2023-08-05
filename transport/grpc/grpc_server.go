@@ -1,17 +1,18 @@
 package grpc
 
 import (
-	proto "github.com/mzz2017/softwind/pkg/gun_proto"
-	"github.com/mzz2017/softwind/pool"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
 	"io"
 	"net"
 	"os"
 	"sync"
 	"time"
+
+	proto "github.com/daeuniverse/softwind/pkg/gun_proto"
+	"github.com/daeuniverse/softwind/pool"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 type ServerConn struct {

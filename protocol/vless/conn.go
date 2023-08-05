@@ -7,15 +7,16 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol/vmess"
 	"io"
 	"net"
 	"net/netip"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol/vmess"
 )
 
 var (

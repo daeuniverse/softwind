@@ -2,7 +2,8 @@ package proto
 
 import (
 	"bytes"
-	"github.com/mzz2017/softwind/common"
+
+	"github.com/daeuniverse/softwind/common"
 )
 
 func init() {

@@ -6,13 +6,14 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"encoding/binary"
-	"github.com/mzz2017/softwind/common"
-	rand "github.com/mzz2017/softwind/pkg/fastrand"
-	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
-	"github.com/mzz2017/softwind/pool"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/daeuniverse/softwind/common"
+	rand "github.com/daeuniverse/softwind/pkg/fastrand"
+	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
+	"github.com/daeuniverse/softwind/pool"
 )
 
 func init() {

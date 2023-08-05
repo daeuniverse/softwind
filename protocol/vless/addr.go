@@ -3,11 +3,12 @@ package trojanc
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/protocol/vmess"
 	"io"
 	"net"
+
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol"
+	"github.com/daeuniverse/softwind/protocol/vmess"
 )
 
 func CompleteMetadataFromReader(m *vmess.Metadata, first4 []byte, r io.Reader) (err error) {
@@ -28,7 +29,7 @@ func CompleteMetadataFromReader(m *vmess.Metadata, first4 []byte, r io.Reader) (
 		}
 		m.Hostname = net.IP(buf).String()
 	case protocol.MetadataTypeDomain:
-		buf := pool.Get(1+255)
+		buf := pool.Get(1 + 255)
 		defer buf.Put()
 		if _, err = io.ReadFull(r, buf[:1]); err != nil {
 			return err

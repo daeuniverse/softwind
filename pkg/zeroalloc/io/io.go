@@ -2,8 +2,9 @@ package io
 
 import (
 	"errors"
-	"github.com/mzz2017/softwind/pool"
 	"io"
+
+	"github.com/daeuniverse/softwind/pool"
 )
 
 // errInvalidWrite means that a write returned an impossible count.

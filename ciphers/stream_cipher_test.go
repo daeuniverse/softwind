@@ -2,10 +2,11 @@ package ciphers
 
 import (
 	"crypto/rc4"
-	"github.com/mzz2017/softwind/common"
-	rand "github.com/mzz2017/softwind/pkg/fastrand"
 	"reflect"
 	"testing"
+
+	"github.com/daeuniverse/softwind/common"
+	rand "github.com/daeuniverse/softwind/pkg/fastrand"
 )
 
 const text = "Don't tell me the moon is shining; show me the glint of light on broken glass."

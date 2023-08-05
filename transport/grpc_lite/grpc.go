@@ -2,8 +2,9 @@ package grpc_lite
 
 import (
 	"fmt"
-	"github.com/mzz2017/softwind/netproxy"
 	"net/url"
+
+	"github.com/daeuniverse/softwind/netproxy"
 )
 
 // Grpc is a base Grpc struct

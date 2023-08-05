@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pool"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pool"
 )
 
 var (

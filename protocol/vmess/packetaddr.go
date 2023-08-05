@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/mzz2017/softwind/protocol"
+	"github.com/daeuniverse/softwind/protocol"
 )
 
 const SeqPacketMagicAddress = "sp.packet-addr.v2fly.arpa"

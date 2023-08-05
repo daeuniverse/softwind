@@ -2,9 +2,10 @@ package vmess
 
 import (
 	"fmt"
-	"github.com/mzz2017/softwind/pool"
 	"net"
 	"net/netip"
+
+	"github.com/daeuniverse/softwind/pool"
 )
 
 func (c *Conn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) {

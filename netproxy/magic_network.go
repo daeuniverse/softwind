@@ -3,9 +3,10 @@ package netproxy
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/mzz2017/softwind/common"
 	"math/bits"
 	"unicode"
+
+	"github.com/daeuniverse/softwind/common"
 )
 
 const MagicNetworkType = 0

@@ -2,13 +2,14 @@ package proto
 
 import (
 	"fmt"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pkg/zeroalloc/buffer"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol/infra/socks"
-	"github.com/mzz2017/softwind/protocol/shadowsocks_stream"
 	"net/netip"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol/infra/socks"
+	"github.com/daeuniverse/softwind/protocol/shadowsocks_stream"
 )
 
 type PacketConn struct {

@@ -7,8 +7,8 @@ import (
 	"net/netip"
 	"strconv"
 
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol"
 )
 
 type PacketConn struct {

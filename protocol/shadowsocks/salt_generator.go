@@ -3,14 +3,15 @@ package shadowsocks
 import (
 	"crypto/sha1"
 	"fmt"
-	"github.com/mzz2017/softwind/common"
-	"github.com/mzz2017/softwind/pkg/fastrand"
-	"github.com/mzz2017/softwind/pool"
-	"golang.org/x/crypto/hkdf"
 	"io"
 	"log"
 	"net/http"
 	"sync"
+
+	"github.com/daeuniverse/softwind/common"
+	"github.com/daeuniverse/softwind/pkg/fastrand"
+	"github.com/daeuniverse/softwind/pool"
+	"golang.org/x/crypto/hkdf"
 )
 
 type (

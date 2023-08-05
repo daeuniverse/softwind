@@ -2,9 +2,10 @@ package proto
 
 import (
 	"bytes"
-	"github.com/mzz2017/softwind/common"
-	"github.com/mzz2017/softwind/transport/shadowsocksr/internal/crypto"
 	"sort"
+
+	"github.com/daeuniverse/softwind/common"
+	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
 
 func init() {

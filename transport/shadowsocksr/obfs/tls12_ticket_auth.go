@@ -5,12 +5,13 @@ import (
 	"crypto/hmac"
 	"encoding/binary"
 	"fmt"
-	"github.com/mzz2017/softwind/common"
-	rand "github.com/mzz2017/softwind/pkg/fastrand"
-	"github.com/mzz2017/softwind/transport/shadowsocksr/proto"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/daeuniverse/softwind/common"
+	rand "github.com/daeuniverse/softwind/pkg/fastrand"
+	"github.com/daeuniverse/softwind/transport/shadowsocksr/proto"
 )
 
 func init() {

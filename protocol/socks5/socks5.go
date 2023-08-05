@@ -13,8 +13,9 @@
 package socks5
 
 import (
-	"github.com/mzz2017/softwind/netproxy"
 	"net/url"
+
+	"github.com/daeuniverse/softwind/netproxy"
 )
 
 // Version is socks5 version number.

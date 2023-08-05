@@ -1,7 +1,7 @@
 package obfs
 
 import (
-	rand "github.com/mzz2017/softwind/pkg/fastrand"
+	rand "github.com/daeuniverse/softwind/pkg/fastrand"
 )
 
 func init() {

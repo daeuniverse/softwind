@@ -7,12 +7,12 @@ import (
 	"net"
 	"time"
 
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/protocol"
+	"github.com/daeuniverse/softwind/protocol/trojanc"
+	"github.com/daeuniverse/softwind/protocol/tuic/common"
 	"github.com/google/uuid"
 	"github.com/mzz2017/quic-go"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/protocol/trojanc"
-	"github.com/mzz2017/softwind/protocol/tuic/common"
 )
 
 func init() {
