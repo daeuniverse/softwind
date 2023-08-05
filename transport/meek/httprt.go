@@ -17,11 +17,29 @@ type httpTripperClient struct {
 	addr       string
 	nextDialer netproxy.Dialer
 	tlsConfig  *tls.Config
+	url        string
 
-	url string
+	roundTripper http.RoundTripper
 }
 
 func (c *httpTripperClient) RoundTrip(ctx context.Context, req Request) (resp Response, err error) {
+	if c.roundTripper == nil {
+		c.roundTripper = &http.Transport{
+			DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
+				rc, err := c.nextDialer.Dial(network, addr)
+				if err != nil {
+					return nil, fmt.Errorf("[Meek]: dial to %s: %w", c.addr, err)
+				}
+				return &netproxy.FakeNetConn{
+					Conn:  rc,
+					LAddr: nil,
+					RAddr: nil,
+				}, nil
+			},
+			TLSClientConfig: c.tlsConfig,
+		}
+	}
+
 	connectionTagStr := base64.RawURLEncoding.EncodeToString(req.ConnectionTag)
 
 	httpRequest, err := http.NewRequest("POST", c.url, bytes.NewReader(req.Data))
@@ -30,21 +48,7 @@ func (c *httpTripperClient) RoundTrip(ctx context.Context, req Request) (resp Re
 	}
 	httpRequest.Header.Set("X-Session-ID", connectionTagStr)
 
-	transport := &http.Transport{
-		DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
-			rc, err := c.nextDialer.Dial(network, addr)
-			if err != nil {
-				return nil, fmt.Errorf("[Meek]: dial to %s: %w", c.addr, err)
-			}
-			return &netproxy.FakeNetConn{
-				Conn:  rc,
-				LAddr: nil,
-				RAddr: nil,
-			}, nil
-		},
-		TLSClientConfig: c.tlsConfig,
-	}
-	httpResp, err := transport.RoundTrip(httpRequest)
+	httpResp, err := c.roundTripper.RoundTrip(httpRequest)
 	if err != nil {
 		return
 	}
