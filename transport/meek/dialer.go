@@ -2,16 +2,22 @@ package meek
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/daeuniverse/softwind/netproxy"
 )
 
 type Dialer struct {
 	nextDialer netproxy.Dialer
+	tlsConfig  *tls.Config
 	addr       string
 	url        string
+	serverName string
+	skipVerify bool
+	alpn       []string
 }
 
 func NewDialer(s string, d netproxy.Dialer) (*Dialer, error) {
@@ -37,6 +43,27 @@ func NewDialer(s string, d netproxy.Dialer) (*Dialer, error) {
 	}
 	if meekUrl.Scheme != "https" {
 		return nil, fmt.Errorf("NewMeek: unimplemented backdrop")
+	}
+
+	// skipVerify
+	if query.Get("allowInsecure") == "true" || query.Get("allowInsecure") == "1" ||
+		query.Get("skipVerify") == "true" || query.Get("skipVerify") == "1" {
+		m.skipVerify = true
+	}
+	// alpn
+	if query.Get("alpn") != "" {
+		// Set it not nil.
+		m.alpn = strings.Split(query.Get("alpn"), ",")
+	} else {
+		m.alpn = []string{"h2", "http/1.1"}
+	}
+	if m.serverName == "" {
+		m.serverName = u.Hostname()
+	}
+	m.tlsConfig = &tls.Config{
+		ServerName:         m.serverName,
+		InsecureSkipVerify: m.skipVerify,
+		NextProtos:         m.alpn,
 	}
 
 	return m, nil

@@ -3,6 +3,7 @@ package meek
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 type httpTripperClient struct {
 	addr       string
 	nextDialer netproxy.Dialer
+	tlsConfig  *tls.Config
 
 	url string
 }
@@ -40,6 +42,7 @@ func (c *httpTripperClient) RoundTrip(ctx context.Context, req Request) (resp Re
 				RAddr: nil,
 			}, nil
 		},
+		TLSClientConfig: c.tlsConfig,
 	}
 	httpResp, err := transport.RoundTrip(httpRequest)
 	if err != nil {
