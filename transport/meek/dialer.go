@@ -78,7 +78,7 @@ func (m *Dialer) Dial(network, addr string) (c netproxy.Conn, err error) {
 	case "tcp":
 		tripper := &httpTripperClient{
 			nextDialer: m.nextDialer,
-			addr:       m.addr,
+			addr:       addr,
 			url:        m.url,
 		}
 
