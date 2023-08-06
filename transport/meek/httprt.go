@@ -9,8 +9,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/daeuniverse/softwind/netproxy"
+)
+
+var (
+	globalRoundTripperCacheMap    map[string]http.RoundTripper
+	globalRoundTripperCacheAccess sync.Mutex
 )
 
 type httpTripperClient struct {
@@ -18,13 +24,46 @@ type httpTripperClient struct {
 	nextDialer netproxy.Dialer
 	tlsConfig  *tls.Config
 	url        string
+}
 
-	roundTripper http.RoundTripper
+func CleanGlobalRoundTripperCache() {
+	globalRoundTripperCacheAccess.Lock()
+	defer globalRoundTripperCacheAccess.Unlock()
+	globalRoundTripperCacheMap = make(map[string]http.RoundTripper)
 }
 
 func (c *httpTripperClient) RoundTrip(ctx context.Context, req Request) (resp Response, err error) {
-	if c.roundTripper == nil {
-		c.roundTripper = &http.Transport{
+	roundTripper := c.getRoundTripper()
+
+	connectionTagStr := base64.RawURLEncoding.EncodeToString(req.ConnectionTag)
+
+	httpRequest, err := http.NewRequest("POST", c.url, bytes.NewReader(req.Data))
+	if err != nil {
+		return
+	}
+	httpRequest.Header.Set("X-Session-ID", connectionTagStr)
+
+	httpResp, err := roundTripper.RoundTrip(httpRequest)
+	if err != nil {
+		return
+	}
+	defer httpResp.Body.Close()
+
+	result, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return
+	}
+	return Response{Data: result}, err
+}
+
+func (c *httpTripperClient) getRoundTripper() http.RoundTripper {
+	globalRoundTripperCacheAccess.Lock()
+	defer globalRoundTripperCacheAccess.Unlock()
+	if globalRoundTripperCacheMap == nil {
+		globalRoundTripperCacheMap = make(map[string]http.RoundTripper)
+	}
+	if _, ok := globalRoundTripperCacheMap[c.addr]; !ok {
+		globalRoundTripperCacheMap[c.addr] = &http.Transport{
 			DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
 				rc, err := c.nextDialer.Dial(network, addr)
 				if err != nil {
@@ -39,24 +78,5 @@ func (c *httpTripperClient) RoundTrip(ctx context.Context, req Request) (resp Re
 			TLSClientConfig: c.tlsConfig,
 		}
 	}
-
-	connectionTagStr := base64.RawURLEncoding.EncodeToString(req.ConnectionTag)
-
-	httpRequest, err := http.NewRequest("POST", c.url, bytes.NewReader(req.Data))
-	if err != nil {
-		return
-	}
-	httpRequest.Header.Set("X-Session-ID", connectionTagStr)
-
-	httpResp, err := c.roundTripper.RoundTrip(httpRequest)
-	if err != nil {
-		return
-	}
-	defer httpResp.Body.Close()
-
-	result, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		return
-	}
-	return Response{Data: result}, err
+	return globalRoundTripperCacheMap[c.addr]
 }
