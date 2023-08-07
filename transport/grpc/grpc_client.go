@@ -296,7 +296,7 @@ func (c *ClientConn) SetWriteDeadline(t time.Time) error {
 }
 
 type Dialer struct {
-	NextDialer    *netproxy.ContextDialer
+	NextDialer    netproxy.ContextDialer
 	ServiceName   string
 	ServerName    string
 	AllowInsecure bool
@@ -344,7 +344,7 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 	return NewClientConn(tun, streamCloser), nil
 }
 
-func getGrpcClientConn(ctx context.Context, tcpDialer *netproxy.ContextDialer, serverName string, address string, allowInsecure bool, somark uint32) (*clientConnMeta, ccCanceller, error) {
+func getGrpcClientConn(ctx context.Context, tcpDialer netproxy.ContextDialer, serverName string, address string, allowInsecure bool, somark uint32) (*clientConnMeta, ccCanceller, error) {
 	// allowInsecure?
 	roots, err := cert.GetSystemCertPool()
 	if err != nil {

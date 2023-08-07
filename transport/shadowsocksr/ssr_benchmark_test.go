@@ -47,7 +47,7 @@ func BenchmarkSSR(b *testing.B) {
 
 		c := http.Client{
 			Transport: &http.Transport{Dial: func(network string, addr string) (net.Conn, error) {
-				c, err := d.DialTcp(addr)
+				c, err := d.Dial("tcp", addr)
 				if err != nil {
 					return nil, err
 				}

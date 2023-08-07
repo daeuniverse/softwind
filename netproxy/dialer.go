@@ -10,7 +10,11 @@ type Dialer interface {
 	Dial(network string, addr string) (c Conn, err error)
 }
 
-type ContextDialer struct {
+type ContextDialer interface {
+	DialContext(ctx context.Context, network, addr string) (c Conn, err error)
+}
+
+type ContextDialerConverter struct {
 	Dialer
 }
 
@@ -35,6 +39,6 @@ func DialContext(ctx context.Context, network, addr string, dial func(network, a
 	}
 }
 
-func (d *ContextDialer) DialContext(ctx context.Context, network, addr string) (c Conn, err error) {
+func (d *ContextDialerConverter) DialContext(ctx context.Context, network, addr string) (c Conn, err error) {
 	return DialContext(ctx, network, addr, d.Dialer.Dial)
 }

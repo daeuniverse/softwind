@@ -98,7 +98,7 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 
 		if d.protocol == protocol.ProtocolVMessTlsGrpc {
 			d.nextDialer = &grpc.Dialer{
-				NextDialer:  &netproxy.ContextDialer{Dialer: d.nextDialer},
+				NextDialer:  &netproxy.ContextDialerConverter{Dialer: d.nextDialer},
 				ServiceName: d.grpcServiceName,
 				ServerName:  d.proxySNI,
 			}
