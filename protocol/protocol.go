@@ -18,11 +18,12 @@ const (
 	ProtocolVMessTCP     Protocol = "vmess"
 	ProtocolVMessTlsGrpc Protocol = "vmess+tls+grpc"
 	ProtocolShadowsocks  Protocol = "shadowsocks"
+	ProtocolJuicity      Protocol = "juicity"
 )
 
 func (p Protocol) Valid() bool {
 	switch p {
-	case ProtocolVMessTCP, ProtocolVMessTlsGrpc, ProtocolShadowsocks:
+	case ProtocolVMessTCP, ProtocolVMessTlsGrpc, ProtocolShadowsocks, ProtocolJuicity:
 		return true
 	default:
 		return false

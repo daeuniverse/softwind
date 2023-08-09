@@ -3,7 +3,6 @@ module github.com/daeuniverse/softwind
 go 1.18
 
 require (
-	ekyu.moe/leb128 v0.0.0-20190626180622-d3722dc409a8
 	github.com/dgryski/go-camellia v0.0.0-20191119043421-69a8a13fb23d
 	github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb
 	github.com/dgryski/go-rc2 v0.0.0-20150621095337-8a9021637152
@@ -11,7 +10,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.0
 	github.com/mzz2017/disk-bloom v1.0.1
-	github.com/mzz2017/quic-go v0.0.0-20230806040851-f9ecab3bb42a
+	github.com/mzz2017/quic-go v0.0.0-20230809140948-2ea096492e36
 	github.com/refraction-networking/utls v1.3.2
 	github.com/seiflotfy/cuckoofilter v0.0.0-20220411075957-e3b120b3f5fb
 	gitlab.com/yawning/chacha20.git v0.0.0-20230427033715-7877545b1b37
