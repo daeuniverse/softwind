@@ -123,7 +123,7 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 				Mark:    magicNetwork.Mark,
 			}.Encode()
 		}
-		tcpConn, err := d.clientRing.Dial(context.TODO(), &trojanc.Metadata{
+		conn, err := d.clientRing.Dial(context.TODO(), &trojanc.Metadata{
 			Metadata: mdata,
 			Network:  magicNetwork.Network,
 		}, d.nextDialer,
@@ -135,18 +135,38 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 		if magicNetwork.Network == "tcp" {
 			time.AfterFunc(100*time.Millisecond, func() {
 				// avoid the situation where the server sends messages first
-				if _, err = tcpConn.Write(nil); err != nil {
+				if _, err = conn.Write(nil); err != nil {
 					return
 				}
 			})
-			return tcpConn, nil
+			return conn, nil
 		} else {
 			return &PacketConn{
-				Conn: tcpConn,
+				Conn: conn,
 			}, nil
 		}
 
 	default:
 		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, magicNetwork.Network)
 	}
+}
+
+func (d *Dialer) DialCmdMsg(cmd protocol.MetadataCmd) (c netproxy.Conn, err error) {
+	proxyAddr, err := net.ResolveUDPAddr("udp", d.proxyAddress)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := d.clientRing.Dial(context.TODO(), &trojanc.Metadata{
+		Metadata: protocol.Metadata{
+			Type:     protocol.MetadataTypeMsg,
+			Cmd:      cmd,
+			IsClient: true,
+		},
+	}, d.nextDialer,
+		d.dialFuncFactory("udp", proxyAddr),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
 }

@@ -11,6 +11,7 @@ type Dialer interface {
 }
 
 type ContextDialer interface {
+	Dial(network string, addr string) (c Conn, err error)
 	DialContext(ctx context.Context, network, addr string) (c Conn, err error)
 }
 
