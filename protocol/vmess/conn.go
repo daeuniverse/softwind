@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"strconv"
 	"sync"
 
 	"github.com/daeuniverse/softwind/common"
@@ -393,6 +394,7 @@ func (c *Conn) read(b []byte) (n int, err error) {
 			if err = c.metadata.CompleteFromInstructionData(instructionData[:lenInstruction]); err != nil {
 				return
 			}
+			c.dialTgt = net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port)))
 
 			if c.readBodyCipher, err = c.NewAEAD(c.requestBodyKey[:]); err != nil {
 				return
