@@ -22,9 +22,10 @@ type clientRing struct {
 }
 
 type clientRingNode struct {
-	cli *clientImpl
 	// capability is protected by quic RWMutex.
+	// capability should be placed first so alignment is guaranteed for atomic operations. See https://github.com/juicity/juicity/issues/89.
 	capability int64
+	cli        *clientImpl
 }
 
 func newClientRing(newClient func(capabilityCallback func(n int64)) *clientImpl, reserved int64) *clientRing {

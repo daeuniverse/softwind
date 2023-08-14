@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/netip"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/daeuniverse/softwind/netproxy"
@@ -89,7 +88,6 @@ type quicStreamPacketConn struct {
 
 	deferQuicConnFn func(quicConn quic.Connection, err error)
 	closeDeferFn    func()
-	writeClosed     *atomic.Bool
 
 	closeOnce sync.Once
 	closeErr  error
@@ -207,10 +205,6 @@ func (q *quicStreamPacketConn) WriteTo(p []byte, addr string) (n int, err error)
 		return 0, quic.ErrMessageTooLarge(0xffff)
 	}
 	if q.closed {
-		return 0, net.ErrClosed
-	}
-	if q.writeClosed != nil && q.writeClosed.Load() {
-		_ = q.Close()
 		return 0, net.ErrClosed
 	}
 	if q.deferQuicConnFn != nil {

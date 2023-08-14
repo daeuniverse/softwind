@@ -109,6 +109,9 @@ const (
 )
 
 type bbrSender struct {
+	// lossState should be placed first so alignment is guaranteed for atomic operations.
+	lossState uint64
+
 	mode          bbrMode
 	clock         Clock
 	rttStats      congestion.RTTStatsProvider
@@ -238,8 +241,6 @@ type bbrSender struct {
 	pacer *pacer
 
 	maxDatagramSize congestion.ByteCount
-
-	lossState uint64
 }
 
 func NewBBRSender(
