@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	InitialStreamReceiveWindow     = 2 * 1024 * 1024  // 2 MB
+	InitialStreamReceiveWindow     = 8 * 1024 * 1024  // 8 MB
 	MaxStreamReceiveWindow         = 32 * 1024 * 1024 // 32 MB
 	InitialConnectionReceiveWindow = 32 * 1024 * 1024 // 32 MB
 	MaxConnectionReceiveWindow     = 64 * 1024 * 1024 // 64 MB

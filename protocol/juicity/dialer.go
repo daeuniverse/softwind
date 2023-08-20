@@ -54,7 +54,7 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 						MaxConnectionReceiveWindow:     common.MaxConnectionReceiveWindow,
 						KeepAlivePeriod:                5 * time.Second,
 						DisablePathMTUDiscovery:        false,
-						EnableDatagrams:                true,
+						EnableDatagrams:                false,
 						HandshakeIdleTimeout:           8 * time.Second,
 						CapabilityCallback:             capabilityCallback,
 					},
