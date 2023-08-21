@@ -48,7 +48,7 @@ func (c *PacketConn) ReadFrom(p []byte) (n int, addrPort netip.AddrPort, err err
 		}
 	} else {
 		if addrPort, err = m.AddrPort(); err != nil {
-			return 0, netip.AddrPort{}, fmt.Errorf("ReadFrom AddrPort:", err)
+			return 0, netip.AddrPort{}, fmt.Errorf("ReadFrom AddrPort: %w", err)
 		}
 	}
 
