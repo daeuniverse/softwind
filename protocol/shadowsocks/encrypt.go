@@ -12,7 +12,7 @@ import (
 
 // EncryptUDPFromPool returns shadowBytes from pool.
 // the shadowBytes MUST be put back.
-func EncryptUDPFromPool(key Key, b []byte, salt []byte) (shadowBytes []byte, err error) {
+func EncryptUDPFromPool(key *Key, b []byte, salt []byte, reusedInfo []byte) (shadowBytes pool.PB, err error) {
 	var buf = pool.Get(key.CipherConf.SaltLen + len(b) + key.CipherConf.TagLen)
 	defer func() {
 		if err != nil {
@@ -26,7 +26,7 @@ func EncryptUDPFromPool(key Key, b []byte, salt []byte) (shadowBytes []byte, err
 		sha1.New,
 		key.MasterKey,
 		buf[:key.CipherConf.SaltLen],
-		ciphers.ReusedInfo,
+		reusedInfo,
 	)
 	_, err = io.ReadFull(kdf, subKey)
 	if err != nil {
@@ -41,9 +41,9 @@ func EncryptUDPFromPool(key Key, b []byte, salt []byte) (shadowBytes []byte, err
 }
 
 // DecryptUDP will decrypt the data in place
-func DecryptUDP(key Key, shadowBytes []byte) (n int, err error) {
+func DecryptUDPFromPool(key *Key, shadowBytes []byte, reusedInfo []byte) (buf pool.PB, err error) {
 	if len(shadowBytes) < key.CipherConf.SaltLen {
-		return 0, fmt.Errorf("short length to decrypt")
+		return nil, fmt.Errorf("short length to decrypt")
 	}
 	subKey := pool.Get(key.CipherConf.KeyLen)
 	defer pool.Put(subKey)
@@ -51,7 +51,7 @@ func DecryptUDP(key Key, shadowBytes []byte) (n int, err error) {
 		sha1.New,
 		key.MasterKey,
 		shadowBytes[:key.CipherConf.SaltLen],
-		ciphers.ReusedInfo,
+		reusedInfo,
 	)
 	_, err = io.ReadFull(kdf, subKey)
 	if err != nil {
@@ -61,10 +61,11 @@ func DecryptUDP(key Key, shadowBytes []byte) (n int, err error) {
 	if err != nil {
 		return
 	}
-	plainText, err := ciph.Open(shadowBytes[key.CipherConf.SaltLen:key.CipherConf.SaltLen], ciphers.ZeroNonce[:key.CipherConf.NonceLen], shadowBytes[key.CipherConf.SaltLen:], nil)
+	buf = pool.Get(len(shadowBytes))
+	buf, err = ciph.Open(buf[:0], ciphers.ZeroNonce[:key.CipherConf.NonceLen], shadowBytes[key.CipherConf.SaltLen:], nil)
 	if err != nil {
-		return 0, err
+		buf.Put()
+		return nil, err
 	}
-	copy(shadowBytes, plainText)
-	return len(plainText), nil
+	return buf, nil
 }

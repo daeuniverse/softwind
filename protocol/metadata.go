@@ -68,6 +68,12 @@ func (m *Metadata) AddrPort() (netip.AddrPort, error) {
 			return netip.AddrPort{}, err
 		}
 		return netip.AddrPortFrom(ip, m.Port), nil
+	case MetadataTypeDomain:
+		uAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(m.Hostname, strconv.Itoa(int(m.Port))))
+		if err != nil {
+			return netip.AddrPort{}, err
+		}
+		return uAddr.AddrPort(), nil
 	default:
 		return netip.AddrPort{}, fmt.Errorf("bad metadata type: %v; should be ip", m.Type)
 	}

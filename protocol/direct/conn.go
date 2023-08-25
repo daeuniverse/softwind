@@ -3,6 +3,7 @@ package direct
 import (
 	"net"
 	"net/netip"
+	"syscall"
 
 	"github.com/daeuniverse/softwind/common"
 )
@@ -68,3 +69,10 @@ func (c *directPacketConn) Read(b []byte) (int, error) {
 	n, _, err := c.UDPConn.ReadFrom(b)
 	return n, err
 }
+
+var _ interface {
+	SyscallConn() (syscall.RawConn, error)
+	SetReadBuffer(int) error
+	ReadMsgUDP(b, oob []byte) (n, oobn, flags int, addr *net.UDPAddr, err error)
+	WriteMsgUDP(b, oob []byte, addr *net.UDPAddr) (n, oobn int, err error)
+} = &directPacketConn{}

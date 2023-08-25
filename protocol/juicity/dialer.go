@@ -3,12 +3,16 @@ package juicity
 import (
 	"context"
 	"fmt"
+	"io"
 	"math"
 	"net"
+	"net/netip"
 	"time"
 
+	"github.com/daeuniverse/softwind/ciphers"
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/protocol"
+	"github.com/daeuniverse/softwind/protocol/shadowsocks"
 	"github.com/daeuniverse/softwind/protocol/trojanc"
 	"github.com/daeuniverse/softwind/protocol/tuic/common"
 	"github.com/google/uuid"
@@ -123,16 +127,49 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 				Mark:    magicNetwork.Mark,
 			}.Encode()
 		}
+		innerNetwork := magicNetwork.Network
+		var underlayDialTgt netip.AddrPort
+		if magicNetwork.Network == "udp" {
+			switch mdata.Port {
+			case 443, 8443, 5201:
+				innerNetwork = "underlay"
+				underlayDialTgt, err = mdata.AddrPort()
+				if err != nil {
+					return nil, err
+				}
+				mdata.Hostname = underlayDialTgt.Addr().String()
+			}
+		}
 		conn, err := d.clientRing.Dial(context.TODO(), &trojanc.Metadata{
 			Metadata: mdata,
-			Network:  magicNetwork.Network,
+			Network:  innerNetwork,
 		}, d.nextDialer,
 			d.dialFuncFactory(udpNetwork, proxyAddr),
 		)
 		if err != nil {
 			return nil, err
 		}
-		if magicNetwork.Network == "tcp" {
+		if innerNetwork == "underlay" {
+			defer conn.Close()
+			if _, err = conn.Write(nil); err != nil {
+				return nil, err
+			}
+			key, err := readUnderlayPsk(conn)
+			if err != nil {
+				return nil, err
+			}
+			transport, _, err := d.dialFuncFactory(udpNetwork, proxyAddr)(context.TODO(), d.nextDialer)
+			if err != nil {
+				return nil, err
+			}
+			return &TransportPacketConn{
+				Transport: transport,
+				tgt:       net.UDPAddrFromAddrPort(underlayDialTgt),
+				netipTgt:  underlayDialTgt,
+				key:       key,
+			}, nil
+		}
+		if innerNetwork == "tcp" {
 			time.AfterFunc(100*time.Millisecond, func() {
 				// avoid the situation where the server sends messages first
 				if _, err = conn.Write(nil); err != nil {
@@ -149,6 +186,18 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 	default:
 		return nil, fmt.Errorf("%w: %v", netproxy.UnsupportedTunnelTypeError, magicNetwork.Network)
 	}
+}
+
+func readUnderlayPsk(c *Conn) (key *shadowsocks.Key, err error) {
+	psk := make([]byte, 64)
+	_, err = io.ReadFull(c, psk)
+	if err != nil {
+		return nil, err
+	}
+	return &shadowsocks.Key{
+		CipherConf: ciphers.AeadCiphersConf["chacha20-poly1305"],
+		MasterKey:  psk,
+	}, nil
 }
 
 func (d *Dialer) DialCmdMsg(cmd protocol.MetadataCmd) (c netproxy.Conn, err error) {

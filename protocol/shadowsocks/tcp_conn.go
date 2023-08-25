@@ -125,7 +125,7 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 			sha1.New,
 			c.masterKey,
 			salt,
-			ciphers.ReusedInfo,
+			ciphers.ShadowsocksReusedInfo,
 		)
 		_, err = io.ReadFull(kdf, subKey)
 		if err != nil {
@@ -222,7 +222,7 @@ func (c *TCPConn) initWriteFromPool(b []byte) (buf []byte, offset int, toWrite [
 		sha1.New,
 		c.masterKey,
 		buf[:c.cipherConf.SaltLen],
-		ciphers.ReusedInfo,
+		ciphers.ShadowsocksReusedInfo,
 	)
 	_, err = io.ReadFull(kdf, subKey)
 	if err != nil {

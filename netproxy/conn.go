@@ -6,6 +6,8 @@ import (
 	"net/netip"
 	"syscall"
 	"time"
+
+	"github.com/mzz2017/quic-go"
 )
 
 var UnsupportedTunnelTypeError = net.UnknownNetworkError("unsupported tunnel type")
@@ -54,6 +56,28 @@ type FakeNetPacketConn struct {
 	RAddr net.Addr
 }
 
+// ReadMsgUDP implements quic.OOBCapablePacketConn.
+func (conn *FakeNetPacketConn) ReadMsgUDP(b []byte, oob []byte) (n int, oobn int, flags int, addr *net.UDPAddr, err error) {
+	c, ok := conn.PacketConn.(interface {
+		ReadMsgUDP(b []byte, oob []byte) (n int, oobn int, flags int, addr *net.UDPAddr, err error)
+	})
+	if !ok {
+		return 0, 0, 0, nil, fmt.Errorf("connection doesn't allow to get ReadMsgUDP. Not a *net.UDPConn?")
+	}
+	return c.ReadMsgUDP(b, oob)
+}
+
+// WriteMsgUDP implements quic.OOBCapablePacketConn.
+func (conn *FakeNetPacketConn) WriteMsgUDP(b []byte, oob []byte, addr *net.UDPAddr) (n int, oobn int, err error) {
+	c, ok := conn.PacketConn.(interface {
+		WriteMsgUDP(b []byte, oob []byte, addr *net.UDPAddr) (n int, oobn int, err error)
+	})
+	if !ok {
+		return 0, 0, fmt.Errorf("connection doesn't allow to get WriteMsgUDP. Not a *net.UDPConn?")
+	}
+	return c.WriteMsgUDP(b, oob, addr)
+}
+
 func (conn *FakeNetPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	n, a, err := conn.PacketConn.ReadFrom(p)
 	return n, net.UDPAddrFromAddrPort(a), err
@@ -90,3 +114,5 @@ func (conn *FakeNetPacketConn) SyscallConn() (syscall.RawConn, error) {
 	}
 	return c.SyscallConn()
 }
+
+var _ quic.OOBCapablePacketConn = &FakeNetPacketConn{}

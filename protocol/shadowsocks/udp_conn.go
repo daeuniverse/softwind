@@ -88,10 +88,10 @@ func (c *UdpConn) WriteTo(b []byte, addr string) (int, error) {
 	copy(chunk, prefix)
 	copy(chunk[len(prefix):], b)
 	salt := c.sg.Get()
-	toWrite, err := EncryptUDPFromPool(Key{
+	toWrite, err := EncryptUDPFromPool(&Key{
 		CipherConf: c.cipherConf,
 		MasterKey:  c.masterKey,
-	}, chunk, salt)
+	}, chunk, salt, ciphers.ShadowsocksReusedInfo)
 	pool.Put(salt)
 	if err != nil {
 		return 0, err
@@ -111,13 +111,17 @@ func (c *UdpConn) ReadFrom(b []byte) (n int, addr netip.AddrPort, err error) {
 	enc := pool.Get(len(b))
 	defer pool.Put(enc)
 	copy(enc, b)
-	n, err = DecryptUDP(Key{
+
+	buf, err := DecryptUDPFromPool(&Key{
 		CipherConf: c.cipherConf,
 		MasterKey:  c.masterKey,
-	}, b[:n])
+	}, b[:n], ciphers.ShadowsocksReusedInfo)
 	if err != nil {
-		return
+		return 0, netip.AddrPort{}, err
 	}
+	defer buf.Put()
+	n = copy(b, buf)
+
 	if c.bloom != nil {
 		if exist := c.bloom.ExistOrAdd(enc[:c.cipherConf.SaltLen]); exist {
 			err = protocol.ErrReplayAttack
