@@ -4,16 +4,67 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
+	"github.com/daeuniverse/softwind/ciphers"
 	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/protocol/trojanc"
 	"github.com/daeuniverse/softwind/protocol/tuic"
 	"github.com/daeuniverse/softwind/protocol/tuic/common"
 	"github.com/mzz2017/quic-go"
 )
+
+var (
+	CipherConf = ciphers.AeadCiphersConf["chacha20-poly1305"]
+)
+
+const (
+	UnderlaySaltLen = 32
+)
+
+func init() {
+	if CipherConf.SaltLen != UnderlaySaltLen {
+		panic("CipherConf.SaltLen != IvSize")
+	}
+}
+
+type UnderlayAuth struct {
+	IV       []byte
+	Psk      []byte
+	Metadata *trojanc.Metadata
+}
+
+func (a *UnderlayAuth) PackFromPool() (buf pool.PB) {
+	buf = pool.Get(a.Metadata.Len() + len(a.IV) + len(a.Psk))
+	copy(buf, a.IV)
+	copy(buf[len(a.IV):], a.Psk)
+	a.Metadata.PackTo(buf[len(a.IV)+len(a.Psk):])
+	return buf
+}
+
+func (a *UnderlayAuth) Unpack(r io.Reader) (n int, err error) {
+	var _n int
+	a.IV = make([]byte, CipherConf.SaltLen)
+	if _n, err = io.ReadFull(r, a.IV); err != nil {
+		return 0, err
+	}
+	n += _n
+	a.Psk = make([]byte, CipherConf.KeyLen)
+	if _n, err = io.ReadFull(r, a.Psk); err != nil {
+		return 0, err
+	}
+	n += _n
+	a.Metadata = &trojanc.Metadata{}
+	if _n, err = a.Metadata.Unpack(r); err != nil {
+		return 0, err
+	}
+	n += _n
+	return n, nil
+}
 
 type ClientOption struct {
 	TlsConfig            *tls.Config
@@ -22,6 +73,9 @@ type ClientOption struct {
 	Password             string
 	CongestionController string
 	CWND                 int
+	Ctx                  context.Context
+	Cancel               func()
+	UnderlayAuth         chan *UnderlayAuth
 }
 
 type clientImpl struct {
@@ -29,8 +83,6 @@ type clientImpl struct {
 
 	quicConn  quic.Connection
 	connMutex sync.Mutex
-
-	closed bool
 
 	detachCallback func()
 }
@@ -81,16 +133,33 @@ func (t *clientImpl) sendAuthentication(quicConn quic.Connection) (err error) {
 	if err != nil {
 		return err
 	}
-	return uniStream.Close()
+	defer uniStream.Close()
+	for {
+		var auth *UnderlayAuth
+		select {
+		case <-t.Ctx.Done():
+			return t.Ctx.Err()
+		case auth = <-t.UnderlayAuth:
+		}
+		buf := auth.PackFromPool()
+		_, err = uniStream.Write(buf)
+		buf.Put()
+		if err != nil {
+			t.Close()
+			return err
+		}
+	}
 }
 
 func (t *clientImpl) Close() (err error) {
 	t.connMutex.Lock()
-	if t.closed {
+	select {
+	case <-t.Ctx.Done():
 		t.connMutex.Unlock()
 		return
+	default:
+		t.Cancel()
 	}
-	t.closed = true
 	if t.detachCallback != nil {
 		go t.detachCallback()
 		t.detachCallback = nil
@@ -108,11 +177,13 @@ func (t *clientImpl) Close() (err error) {
 	return err
 }
 
-func (t *clientImpl) Dial(ctx context.Context, metadata *trojanc.Metadata, dialer netproxy.Dialer, dialFn common.DialFunc) (*Conn, error) {
-	if t.closed {
+func (t *clientImpl) Dial(metadata *trojanc.Metadata, dialer netproxy.Dialer, dialFn common.DialFunc) (*Conn, error) {
+	select {
+	case <-t.Ctx.Done():
 		return nil, common.ErrClientClosed
+	default:
 	}
-	quicConn, err := t.getQuicConn(ctx, dialer, dialFn)
+	quicConn, err := t.getQuicConn(t.Ctx, dialer, dialFn)
 	if err != nil {
 		return nil, fmt.Errorf("getQuicConn: %w", err)
 	}
@@ -133,6 +204,28 @@ func (t *clientImpl) Dial(ctx context.Context, metadata *trojanc.Metadata, diale
 		nil,
 	)
 	return stream, nil
+}
+func (t *clientImpl) DialAuth(metadata *trojanc.Metadata, dialer netproxy.Dialer, dialFn common.DialFunc) (iv []byte, psk []byte, err error) {
+	select {
+	case <-t.Ctx.Done():
+		return nil, nil, common.ErrClientClosed
+	default:
+	}
+	_, err = t.getQuicConn(t.Ctx, dialer, dialFn)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getQuicConn: %w", err)
+	}
+	iv = make([]byte, CipherConf.SaltLen)
+	psk = make([]byte, CipherConf.KeyLen)
+	iv[0], iv[1] = 0, 0
+	_, _ = fastrand.Read(iv[2:])
+	_, _ = fastrand.Read(psk)
+	t.UnderlayAuth <- &UnderlayAuth{
+		IV:       iv,
+		Psk:      psk,
+		Metadata: metadata,
+	}
+	return iv, psk, nil
 }
 
 func (t *clientImpl) setOnClose(f func()) {

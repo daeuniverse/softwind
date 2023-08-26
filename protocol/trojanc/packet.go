@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
+	"sync"
 
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/protocol"
@@ -13,6 +14,7 @@ import (
 
 type PacketConn struct {
 	*Conn
+	domainIpMapping sync.Map
 }
 
 func (c *PacketConn) Write(b []byte) (int, error) {
@@ -29,7 +31,7 @@ func (c *PacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, err error) 
 	if _, err = m.Unpack(c.Conn); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-	if addr, err = m.AddrPort(); err != nil {
+	if addr, err = m.DomainIpMapping(&c.domainIpMapping); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
 

@@ -3,13 +3,11 @@ package juicity
 import (
 	"context"
 	"fmt"
-	"io"
 	"math"
 	"net"
-	"net/netip"
+	"strconv"
 	"time"
 
-	"github.com/daeuniverse/softwind/ciphers"
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/protocol"
 	"github.com/daeuniverse/softwind/protocol/shadowsocks"
@@ -48,6 +46,7 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 	}
 	return &Dialer{
 		clientRing: newClientRing(func(capabilityCallback func(n int64)) *clientImpl {
+			ctx, cancel := context.WithCancel(context.Background())
 			return &clientImpl{
 				ClientOption: &ClientOption{
 					TlsConfig: header.TlsConfig,
@@ -66,6 +65,9 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 					Password:             header.Password,
 					CongestionController: header.Feature1,
 					CWND:                 10,
+					Ctx:                  ctx,
+					Cancel:               cancel,
+					UnderlayAuth:         make(chan *UnderlayAuth, 64),
 				},
 			}
 		}, reservedStreamsCapability),
@@ -127,49 +129,47 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 				Mark:    magicNetwork.Mark,
 			}.Encode()
 		}
-		innerNetwork := magicNetwork.Network
-		var underlayDialTgt netip.AddrPort
 		if magicNetwork.Network == "udp" {
 			switch mdata.Port {
 			case 443, 8443, 5201:
-				innerNetwork = "underlay"
-				underlayDialTgt, err = mdata.AddrPort()
+				iv, psk, err := d.clientRing.DialAuth(&trojanc.Metadata{
+					Metadata: mdata,
+					Network:  magicNetwork.Network,
+				}, d.nextDialer, d.dialFuncFactory(udpNetwork, proxyAddr))
 				if err != nil {
 					return nil, err
 				}
-				mdata.Hostname = underlayDialTgt.Addr().String()
+				key, err := underlayKey(psk)
+				if err != nil {
+					return nil, err
+				}
+				innerAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(mdata.Hostname, strconv.Itoa(int(mdata.Port))))
+				if err != nil {
+					return nil, err
+				}
+				transport, _, err := d.dialFuncFactory(udpNetwork, proxyAddr)(context.TODO(), d.nextDialer)
+				if err != nil {
+					return nil, err
+				}
+				return &TransportPacketConn{
+					Transport: transport,
+					proxyAddr: proxyAddr,
+					tgt:       innerAddr.AddrPort(),
+					key:       key,
+					firstIv:   iv,
+				}, nil
 			}
 		}
-		conn, err := d.clientRing.Dial(context.TODO(), &trojanc.Metadata{
+		conn, err := d.clientRing.Dial(&trojanc.Metadata{
 			Metadata: mdata,
-			Network:  innerNetwork,
+			Network:  magicNetwork.Network,
 		}, d.nextDialer,
 			d.dialFuncFactory(udpNetwork, proxyAddr),
 		)
 		if err != nil {
 			return nil, err
 		}
-		if innerNetwork == "underlay" {
-			defer conn.Close()
-			if _, err = conn.Write(nil); err != nil {
-				return nil, err
-			}
-			key, err := readUnderlayPsk(conn)
-			if err != nil {
-				return nil, err
-			}
-			transport, _, err := d.dialFuncFactory(udpNetwork, proxyAddr)(context.TODO(), d.nextDialer)
-			if err != nil {
-				return nil, err
-			}
-			return &TransportPacketConn{
-				Transport: transport,
-				tgt:       net.UDPAddrFromAddrPort(underlayDialTgt),
-				netipTgt:  underlayDialTgt,
-				key:       key,
-			}, nil
-		}
-		if innerNetwork == "tcp" {
+		if magicNetwork.Network == "tcp" {
 			time.AfterFunc(100*time.Millisecond, func() {
 				// avoid the situation where the server sends messages first
 				if _, err = conn.Write(nil); err != nil {
@@ -188,14 +188,9 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 	}
 }
 
-func readUnderlayPsk(c *Conn) (key *shadowsocks.Key, err error) {
-	psk := make([]byte, 64)
-	_, err = io.ReadFull(c, psk)
-	if err != nil {
-		return nil, err
-	}
+func underlayKey(psk []byte) (key *shadowsocks.Key, err error) {
 	return &shadowsocks.Key{
-		CipherConf: ciphers.AeadCiphersConf["chacha20-poly1305"],
+		CipherConf: CipherConf,
 		MasterKey:  psk,
 	}, nil
 }
@@ -205,7 +200,7 @@ func (d *Dialer) DialCmdMsg(cmd protocol.MetadataCmd) (c netproxy.Conn, err erro
 	if err != nil {
 		return nil, err
 	}
-	conn, err := d.clientRing.Dial(context.TODO(), &trojanc.Metadata{
+	conn, err := d.clientRing.Dial(&trojanc.Metadata{
 		Metadata: protocol.Metadata{
 			Type:     protocol.MetadataTypeMsg,
 			Cmd:      cmd,

@@ -46,8 +46,6 @@ func ParseNetwork(n byte) string {
 		return "tcp"
 	case 3:
 		return "udp"
-	case 23:
-		return "underlay"
 	default:
 		return "invalid"
 	}
@@ -59,8 +57,6 @@ func NetworkToByte(network string) byte {
 		return 1
 	case "udp":
 		return 3
-	case "underlay":
-		return 23
 	default:
 		return 0
 	}

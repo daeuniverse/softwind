@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
+	"sync"
 )
 
 type Metadata struct {
@@ -15,6 +16,28 @@ type Metadata struct {
 	Cmd      MetadataCmd
 	Cipher   string
 	IsClient bool
+}
+
+func (m *Metadata) DomainIpMapping(cache *sync.Map) (addrPort netip.AddrPort, err error) {
+	if m.Type == MetadataTypeDomain {
+		if _addr, ok := cache.Load(m.Hostname); ok {
+			addrPort = netip.AddrPortFrom(_addr.(netip.Addr), m.Port)
+		} else {
+			uAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(m.Hostname, strconv.Itoa(int(m.Port))))
+			if err != nil {
+				return netip.AddrPort{}, err
+			}
+			addrPort = uAddr.AddrPort()
+			if _addr, ok = cache.LoadOrStore(m.Hostname, addrPort.Addr()); ok {
+				addrPort = netip.AddrPortFrom(_addr.(netip.Addr), m.Port)
+			}
+		}
+	} else {
+		if addrPort, err = m.AddrPort(); err != nil {
+			return netip.AddrPort{}, fmt.Errorf("ReadFrom AddrPort: %w", err)
+		}
+	}
+	return addrPort, nil
 }
 
 type MetadataCmd uint8
@@ -68,12 +91,6 @@ func (m *Metadata) AddrPort() (netip.AddrPort, error) {
 			return netip.AddrPort{}, err
 		}
 		return netip.AddrPortFrom(ip, m.Port), nil
-	case MetadataTypeDomain:
-		uAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(m.Hostname, strconv.Itoa(int(m.Port))))
-		if err != nil {
-			return netip.AddrPort{}, err
-		}
-		return uAddr.AddrPort(), nil
 	default:
 		return netip.AddrPort{}, fmt.Errorf("bad metadata type: %v; should be ip", m.Type)
 	}

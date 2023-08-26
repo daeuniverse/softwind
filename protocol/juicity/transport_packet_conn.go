@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/daeuniverse/softwind/ciphers"
@@ -15,9 +16,11 @@ import (
 
 type TransportPacketConn struct {
 	*quic.Transport
-	tgt      *net.UDPAddr
-	netipTgt netip.AddrPort
-	key      *shadowsocks.Key
+	proxyAddr *net.UDPAddr
+	tgt       netip.AddrPort
+	key       *shadowsocks.Key
+	firstIv   []byte
+	mu        sync.Mutex
 }
 
 // SetDeadline implements netproxy.Conn.
@@ -36,17 +39,25 @@ func (c *TransportPacketConn) SetWriteDeadline(t time.Time) error {
 }
 
 func (c *TransportPacketConn) Write(b []byte) (int, error) {
-	salt := pool.Get(c.key.CipherConf.SaltLen)
-	defer salt.Put()
-	fastrand.Read(salt)
-	salt[0] = 0
-	salt[1] = 0
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var salt pool.PB
+	if c.firstIv != nil {
+		salt = c.firstIv
+		c.firstIv = nil
+	} else {
+		salt = pool.Get(c.key.CipherConf.SaltLen)
+		defer salt.Put()
+		salt[0] = 0
+		salt[1] = 0
+		fastrand.Read(salt[2:])
+	}
 	toWrite, err := shadowsocks.EncryptUDPFromPool(c.key, b, salt, ciphers.JuicityReusedInfo)
 	if err != nil {
 		return 0, err
 	}
 	defer toWrite.Put()
-	return c.Transport.WriteTo(toWrite, c.tgt)
+	return c.Transport.WriteTo(toWrite, c.proxyAddr)
 }
 
 func (c *TransportPacketConn) Read(b []byte) (n int, err error) {
@@ -65,7 +76,7 @@ func (c *TransportPacketConn) ReadFrom(p []byte) (n int, addrPort netip.AddrPort
 	}
 	defer buf.Put()
 	n = copy(p, buf)
-	return n, c.netipTgt, nil
+	return n, c.tgt, nil
 }
 
 func (c *TransportPacketConn) WriteTo(p []byte, addr string) (n int, err error) {

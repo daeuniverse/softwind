@@ -33,23 +33,8 @@ func (c *PacketConn) ReadFrom(p []byte) (n int, addrPort netip.AddrPort, err err
 	if _, err = m.Unpack(c.Conn); err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-	if m.Type == protocol.MetadataTypeDomain {
-		if _addr, ok := c.domainIpMapping.Load(m.Hostname); ok {
-			addrPort = netip.AddrPortFrom(_addr.(netip.Addr), m.Port)
-		} else {
-			uAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(m.Hostname, strconv.Itoa(int(m.Port))))
-			if err != nil {
-				return 0, netip.AddrPort{}, err
-			}
-			addrPort = uAddr.AddrPort()
-			if _addr, ok = c.domainIpMapping.LoadOrStore(m.Hostname, addrPort.Addr()); ok {
-				addrPort = netip.AddrPortFrom(_addr.(netip.Addr), m.Port)
-			}
-		}
-	} else {
-		if addrPort, err = m.AddrPort(); err != nil {
-			return 0, netip.AddrPort{}, fmt.Errorf("ReadFrom AddrPort: %w", err)
-		}
+	if addrPort, err = m.DomainIpMapping(&c.domainIpMapping); err != nil {
+		return 0, netip.AddrPort{}, fmt.Errorf("ReadFrom AddrPort: %w", err)
 	}
 
 	buf := pool.Get(2)
