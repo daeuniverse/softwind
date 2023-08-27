@@ -1,13 +1,13 @@
 package tuic
 
 import (
-	"bytes"
 	"net/netip"
 
+	"github.com/daeuniverse/softwind/pool"
 	"github.com/mzz2017/quic-go"
 )
 
-func fragWriteNative(quicConn quic.Connection, packet *Packet, buf *bytes.Buffer, fragSize int) (err error) {
+func fragWriteNative(quicConn quic.Connection, packet *Packet, buf *pool.Buffer, fragSize int) (err error) {
 	fullPayload := packet.DATA
 	off := 0
 	fragID := uint8(0)

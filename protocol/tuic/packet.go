@@ -123,7 +123,7 @@ func (q *quicStreamPacketConn) close() (err error) {
 		q.incomingPackets = nil
 
 		buf := pool.GetBuffer()
-		defer pool.PutBuffer(buf)
+		defer buf.Put()
 		err = NewDissociate(q.connId, Ver5).WriteTo(buf)
 		if err != nil {
 			return
@@ -213,7 +213,7 @@ func (q *quicStreamPacketConn) WriteTo(p []byte, addr string) (n int, err error)
 		}()
 	}
 	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
+	defer buf.Put()
 	mdata, err := protocol.ParseMetadata(addr)
 	if err != nil {
 		return 0, err
