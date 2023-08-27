@@ -107,7 +107,7 @@ func (t *clientImpl) sendAuthentication(quicConn quic.Connection) (err error) {
 		return err
 	}
 	buf := pool.GetBuffer()
-	defer buf.Put()
+	defer pool.PutBuffer(buf)
 	token, err := GenToken(quicConn.ConnectionState(), t.Uuid, t.Password)
 	if err != nil {
 		return err

@@ -13,6 +13,7 @@ import (
 	"github.com/daeuniverse/softwind/common"
 	rand "github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/daeuniverse/softwind/pool"
+	swBytes "github.com/daeuniverse/softwind/pool/bytes"
 )
 
 func init() {
@@ -27,7 +28,7 @@ func NewAuthAES128MD5() IProtocol {
 		packID:     1,
 		recvInfo: recvInfo{
 			recvID: 1,
-			buffer: new(bytes.Buffer),
+			buffer: new(swBytes.Buffer),
 		},
 	}
 	return a
@@ -35,7 +36,7 @@ func NewAuthAES128MD5() IProtocol {
 
 type recvInfo struct {
 	recvID uint32
-	buffer *bytes.Buffer
+	buffer *swBytes.Buffer
 }
 
 type authAES128 struct {
@@ -198,7 +199,7 @@ func (a *authAES128) packAuthData(data []byte) (outData []byte) {
 	return
 }
 
-func (a *authAES128) EncodePkt(buf *pool.Buffer) (err error) {
+func (a *authAES128) EncodePkt(buf *swBytes.Buffer) (err error) {
 	buf.Write(a.uid[:])
 	buf.Write(a.hmac(a.userKey, buf.Bytes())[:4])
 	return nil

@@ -1,10 +1,10 @@
 package proto
 
 import (
-	"bytes"
 	"sort"
 
 	"github.com/daeuniverse/softwind/common"
+	"github.com/daeuniverse/softwind/pool/bytes"
 	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
 

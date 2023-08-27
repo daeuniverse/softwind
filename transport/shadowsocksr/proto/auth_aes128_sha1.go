@@ -1,9 +1,8 @@
 package proto
 
 import (
-	"bytes"
-
 	"github.com/daeuniverse/softwind/common"
+	"github.com/daeuniverse/softwind/pool/bytes"
 )
 
 func init() {

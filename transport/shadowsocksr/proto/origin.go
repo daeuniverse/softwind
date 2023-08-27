@@ -2,6 +2,7 @@ package proto
 
 import (
 	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/pool/bytes"
 )
 
 func init() {
@@ -25,7 +26,7 @@ func (o *origin) GetServerInfo() (s *ServerInfo) {
 	return &o.ServerInfo
 }
 
-func (a *origin) EncodePkt(buf *pool.Buffer) (err error) {
+func (a *origin) EncodePkt(buf *bytes.Buffer) (err error) {
 	return nil
 }
 

@@ -1,13 +1,13 @@
 package proto
 
 import (
-	"bytes"
 	"encoding/binary"
 	"time"
 
 	"github.com/daeuniverse/softwind/common"
 	rand "github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/pool/bytes"
 	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
 
@@ -149,7 +149,7 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	return outData
 }
 
-func (a *authSHA1v4) EncodePkt(buf *pool.Buffer) (err error) {
+func (a *authSHA1v4) EncodePkt(buf *bytes.Buffer) (err error) {
 	return nil
 }
 

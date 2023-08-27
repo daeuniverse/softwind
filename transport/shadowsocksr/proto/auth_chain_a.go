@@ -17,6 +17,7 @@ import (
 	"github.com/daeuniverse/softwind/common"
 	rand "github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/daeuniverse/softwind/pool"
+	swBytes "github.com/daeuniverse/softwind/pool/bytes"
 	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
 
@@ -56,7 +57,7 @@ func NewAuthChainA() IProtocol {
 		rndPkt:     authChainAPktGetRandLen,
 		recvInfo: recvInfo{
 			recvID: 1,
-			buffer: new(bytes.Buffer),
+			buffer: new(swBytes.Buffer),
 		},
 	}
 	return a
@@ -251,7 +252,7 @@ func authChainAPktGetRandLen(ctx *crypto.Shift128plusContext, lastHash []byte) i
 	return int(ctx.Next() % 127)
 }
 
-func (a *authChainA) EncodePkt(buf *pool.Buffer) (err error) {
+func (a *authChainA) EncodePkt(buf *swBytes.Buffer) (err error) {
 	authData := pool.Get(3)
 	defer pool.Put(authData)
 	rand.Read(authData)
