@@ -472,7 +472,6 @@ func (b *Buffer) ReadString(delim byte) (line string, err error) {
 }
 
 func (b *Buffer) Put() {
-	b.Reset()
 	PutBuffer(b)
 }
 
