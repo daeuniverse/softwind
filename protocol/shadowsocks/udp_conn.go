@@ -104,23 +104,20 @@ func (c *UdpConn) WriteTo(b []byte, addr string) (int, error) {
 }
 
 func (c *UdpConn) ReadFrom(b []byte) (n int, addr netip.AddrPort, err error) {
-	n, addr, err = c.PacketConn.ReadFrom(b)
+	enc := pool.Get(len(b) + c.cipherConf.SaltLen)
+	defer pool.Put(enc)
+	n, addr, err = c.PacketConn.ReadFrom(enc)
 	if err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-	enc := pool.Get(len(b))
-	defer pool.Put(enc)
-	copy(enc, b)
 
-	buf, err := DecryptUDPFromPool(&Key{
+	n, err = DecryptUDP(b, &Key{
 		CipherConf: c.cipherConf,
 		MasterKey:  c.masterKey,
-	}, b[:n], ciphers.ShadowsocksReusedInfo)
+	}, enc[:n], ciphers.ShadowsocksReusedInfo)
 	if err != nil {
 		return 0, netip.AddrPort{}, err
 	}
-	defer buf.Put()
-	n = copy(b, buf)
 
 	if c.bloom != nil {
 		if exist := c.bloom.ExistOrAdd(enc[:c.cipherConf.SaltLen]); exist {

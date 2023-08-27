@@ -66,16 +66,16 @@ func (c *TransportPacketConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *TransportPacketConn) ReadFrom(p []byte) (n int, addrPort netip.AddrPort, err error) {
-	n, _, err = c.Transport.ReadNonQUICPacket(context.TODO(), p)
-	if err != nil {
-		return 0, netip.AddrPort{}, err
-	}
-	buf, err := shadowsocks.DecryptUDPFromPool(c.key, p[:n], ciphers.JuicityReusedInfo)
-	if err != nil {
-		return 0, netip.AddrPort{}, err
-	}
+	buf := pool.Get(len(p) + CipherConf.SaltLen)
 	defer buf.Put()
-	n = copy(p, buf)
+	n, _, err = c.Transport.ReadNonQUICPacket(context.TODO(), buf)
+	if err != nil {
+		return 0, netip.AddrPort{}, err
+	}
+	n, err = shadowsocks.DecryptUDP(p, c.key, buf[:n], ciphers.JuicityReusedInfo)
+	if err != nil {
+		return 0, netip.AddrPort{}, err
+	}
 	return n, c.tgt, nil
 }
 

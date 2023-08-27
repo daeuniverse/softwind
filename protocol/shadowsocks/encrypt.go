@@ -42,8 +42,19 @@ func EncryptUDPFromPool(key *Key, b []byte, salt []byte, reusedInfo []byte) (sha
 
 // DecryptUDP will decrypt the data in place
 func DecryptUDPFromPool(key *Key, shadowBytes []byte, reusedInfo []byte) (buf pool.PB, err error) {
+	buf = pool.Get(len(shadowBytes))
+	n, err := DecryptUDP(buf[:0], key, shadowBytes, reusedInfo)
+	if err != nil {
+		buf.Put()
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+// DecryptUDP will decrypt the data in place
+func DecryptUDP(writeTo []byte, key *Key, shadowBytes []byte, reusedInfo []byte) (n int, err error) {
 	if len(shadowBytes) < key.CipherConf.SaltLen {
-		return nil, fmt.Errorf("short length to decrypt")
+		return 0, fmt.Errorf("short length to decrypt")
 	}
 	subKey := pool.Get(key.CipherConf.KeyLen)
 	defer pool.Put(subKey)
@@ -61,11 +72,9 @@ func DecryptUDPFromPool(key *Key, shadowBytes []byte, reusedInfo []byte) (buf po
 	if err != nil {
 		return
 	}
-	buf = pool.Get(len(shadowBytes))
-	buf, err = ciph.Open(buf[:0], ciphers.ZeroNonce[:key.CipherConf.NonceLen], shadowBytes[key.CipherConf.SaltLen:], nil)
+	writeTo, err = ciph.Open(writeTo[:0], ciphers.ZeroNonce[:key.CipherConf.NonceLen], shadowBytes[key.CipherConf.SaltLen:], nil)
 	if err != nil {
-		buf.Put()
-		return nil, err
+		return 0, err
 	}
-	return buf, nil
+	return len(writeTo), nil
 }
