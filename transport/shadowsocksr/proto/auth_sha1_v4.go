@@ -7,7 +7,6 @@ import (
 
 	"github.com/daeuniverse/softwind/common"
 	rand "github.com/daeuniverse/softwind/pkg/fastrand"
-	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
@@ -150,7 +149,7 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	return outData
 }
 
-func (a *authSHA1v4) EncodePkt(buf *buffer.Buffer) (err error) {
+func (a *authSHA1v4) EncodePkt(buf *pool.Buffer) (err error) {
 	return nil
 }
 

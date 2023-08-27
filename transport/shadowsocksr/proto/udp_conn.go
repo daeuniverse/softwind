@@ -6,7 +6,6 @@ import (
 
 	"github.com/daeuniverse/softwind/ciphers"
 	"github.com/daeuniverse/softwind/netproxy"
-	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/protocol/infra/socks"
 	"github.com/daeuniverse/softwind/protocol/shadowsocks_stream"
@@ -80,7 +79,7 @@ func (c *PacketConn) WriteTo(b []byte, to string) (n int, err error) {
 	pb := pool.GetMustBigger(len(addr) + len(b))
 	copy(pb, addr)
 	copy(pb[len(addr):], b)
-	buf := buffer.NewBufferFrom(pb)
+	buf := pool.NewBufferFrom(pb)
 	if err = c.Protocol.EncodePkt(buf); err != nil {
 		return 0, err
 	}

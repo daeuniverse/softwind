@@ -3,7 +3,6 @@ package proto
 import (
 	"strings"
 
-	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
@@ -23,7 +22,7 @@ type IProtocol interface {
 	InitWithServerInfo(s *ServerInfo)
 	Encode(data []byte) ([]byte, error)
 	Decode(data []byte) ([]byte, int, error)
-	EncodePkt(buf *buffer.Buffer) error
+	EncodePkt(buf *pool.Buffer) error
 	DecodePkt(data []byte) (pool.Bytes, error)
 	SetData(data interface{})
 	GetData() interface{}

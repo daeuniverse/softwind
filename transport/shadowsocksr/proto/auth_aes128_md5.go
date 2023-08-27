@@ -12,7 +12,6 @@ import (
 
 	"github.com/daeuniverse/softwind/common"
 	rand "github.com/daeuniverse/softwind/pkg/fastrand"
-	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
 	"github.com/daeuniverse/softwind/pool"
 )
 
@@ -199,7 +198,7 @@ func (a *authAES128) packAuthData(data []byte) (outData []byte) {
 	return
 }
 
-func (a *authAES128) EncodePkt(buf *buffer.Buffer) (err error) {
+func (a *authAES128) EncodePkt(buf *pool.Buffer) (err error) {
 	buf.Write(a.uid[:])
 	buf.Write(a.hmac(a.userKey, buf.Bytes())[:4])
 	return nil

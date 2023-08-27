@@ -1,7 +1,6 @@
 package proto
 
 import (
-	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
 	"github.com/daeuniverse/softwind/pool"
 )
 
@@ -26,7 +25,7 @@ func (o *origin) GetServerInfo() (s *ServerInfo) {
 	return &o.ServerInfo
 }
 
-func (a *origin) EncodePkt(buf *buffer.Buffer) (err error) {
+func (a *origin) EncodePkt(buf *pool.Buffer) (err error) {
 	return nil
 }
 

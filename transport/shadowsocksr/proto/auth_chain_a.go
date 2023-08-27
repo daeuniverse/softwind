@@ -16,7 +16,6 @@ import (
 	"github.com/daeuniverse/softwind/ciphers"
 	"github.com/daeuniverse/softwind/common"
 	rand "github.com/daeuniverse/softwind/pkg/fastrand"
-	"github.com/daeuniverse/softwind/pkg/zeroalloc/buffer"
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/transport/shadowsocksr/internal/crypto"
 )
@@ -252,7 +251,7 @@ func authChainAPktGetRandLen(ctx *crypto.Shift128plusContext, lastHash []byte) i
 	return int(ctx.Next() % 127)
 }
 
-func (a *authChainA) EncodePkt(buf *buffer.Buffer) (err error) {
+func (a *authChainA) EncodePkt(buf *pool.Buffer) (err error) {
 	authData := pool.Get(3)
 	defer pool.Put(authData)
 	rand.Read(authData)
