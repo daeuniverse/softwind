@@ -131,7 +131,8 @@ func (d *Dialer) Dial(network string, addr string) (c netproxy.Conn, err error) 
 		}
 		if magicNetwork.Network == "udp" {
 			switch mdata.Port {
-			case 443, 8443, 5201:
+			// case 443, 8443, 5201:
+			case 0:
 				iv, psk, err := d.clientRing.DialAuth(&trojanc.Metadata{
 					Metadata: mdata,
 					Network:  magicNetwork.Network,
