@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/protocol/trojanc"
@@ -22,7 +21,6 @@ type clientRing struct {
 
 type clientRingNode struct {
 	// capability is protected by quic RWMutex.
-	// capability should be placed first so alignment is guaranteed for atomic operations. See https://github.com/juicity/juicity/issues/89.
 	capability int64
 	cli        *clientImpl
 }
@@ -43,7 +41,7 @@ func (r *clientRing) Dial(metadata *trojanc.Metadata, dialer netproxy.Dialer, di
 	defer r.mu.Unlock()
 	newCurrent := r.current
 	err = r._tryNext(&newCurrent, func(node *clientRingNode) error {
-		cap := atomic.LoadInt64(&node.capability)
+		cap := node.capability
 		if cap != -1 && cap <= r.reserved {
 			return common.ErrHoldOn
 		}
@@ -59,7 +57,7 @@ func (r *clientRing) DialAuth(metadata *trojanc.Metadata, dialer netproxy.Dialer
 	defer r.mu.Unlock()
 	newCurrent := r.current
 	err = r._tryNext(&newCurrent, func(node *clientRingNode) error {
-		cap := atomic.LoadInt64(&node.capability)
+		cap := node.capability
 		if cap != -1 && cap <= r.reserved {
 			return common.ErrHoldOn
 		}
@@ -107,7 +105,7 @@ getNew:
 		cli:        nil,
 		capability: -1,
 	}
-	newCli := r.newClient(func(n int64) { atomic.StoreInt64(&newNode.capability, n) })
+	newCli := r.newClient(func(n int64) { newNode.capability = n })
 	newNode.cli = newCli
 	r.current = r._insertAfterCurrent(newNode)
 	*current = r.current
