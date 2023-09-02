@@ -10,7 +10,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.0
 	github.com/mzz2017/disk-bloom v1.0.1
-	github.com/mzz2017/quic-go v0.0.0-20230826094347-f6ce422906f4
+	github.com/mzz2017/quic-go v0.0.0-20230902042923-a727c1c479d4
 	github.com/refraction-networking/utls v1.3.2
 	github.com/seiflotfy/cuckoofilter v0.0.0-20220411075957-e3b120b3f5fb
 	gitlab.com/yawning/chacha20.git v0.0.0-20230427033715-7877545b1b37
