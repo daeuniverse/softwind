@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"time"
 
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/protocol"
@@ -23,8 +22,6 @@ type Client interface {
 	DialContextWithDialer(ctx context.Context, metadata *protocol.Metadata, dialer netproxy.Dialer, dialFn DialFunc) (netproxy.Conn, error)
 	ListenPacketWithDialer(ctx context.Context, metadata *protocol.Metadata, dialer netproxy.Dialer, dialFn DialFunc) (netproxy.PacketConn, error)
 	OpenStreams() int64
-	LastVisited() time.Time
-	SetLastVisited(last time.Time)
 	Close()
 }
 

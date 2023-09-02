@@ -9,7 +9,6 @@ import (
 	"net"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/daeuniverse/softwind/netproxy"
@@ -45,18 +44,7 @@ type clientImpl struct {
 
 	udpIncomingPacketsMap sync.Map
 
-	// only ready for PoolClient
-	lastVisited atomic.Value
-
 	onClose func()
-}
-
-func (t *clientImpl) LastVisited() time.Time {
-	return t.lastVisited.Load().(time.Time)
-}
-
-func (t *clientImpl) SetLastVisited(last time.Time) {
-	t.lastVisited.Store(last)
 }
 
 func (t *clientImpl) getQuicConn(ctx context.Context, dialer netproxy.Dialer, dialFn common.DialFunc) (quic.Connection, error) {
