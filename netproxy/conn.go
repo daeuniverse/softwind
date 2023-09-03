@@ -62,7 +62,7 @@ func (conn *FakeNetPacketConn) ReadMsgUDP(b []byte, oob []byte) (n int, oobn int
 		ReadMsgUDP(b []byte, oob []byte) (n int, oobn int, flags int, addr *net.UDPAddr, err error)
 	})
 	if !ok {
-		return 0, 0, 0, nil, fmt.Errorf("connection doesn't allow to get ReadMsgUDP. Not a *net.UDPConn?")
+		return 0, 0, 0, nil, fmt.Errorf("connection doesn't allow to get ReadMsgUDP. Not a *net.UDPConn? : %T", conn.PacketConn)
 	}
 	return c.ReadMsgUDP(b, oob)
 }
@@ -73,7 +73,7 @@ func (conn *FakeNetPacketConn) WriteMsgUDP(b []byte, oob []byte, addr *net.UDPAd
 		WriteMsgUDP(b []byte, oob []byte, addr *net.UDPAddr) (n int, oobn int, err error)
 	})
 	if !ok {
-		return 0, 0, fmt.Errorf("connection doesn't allow to get WriteMsgUDP. Not a *net.UDPConn?")
+		return 0, 0, fmt.Errorf("connection doesn't allow to get WriteMsgUDP. Not a *net.UDPConn? : %T", conn.PacketConn)
 	}
 	return c.WriteMsgUDP(b, oob, addr)
 }
@@ -94,14 +94,14 @@ func (conn *FakeNetPacketConn) RemoteAddr() net.Addr {
 func (conn *FakeNetPacketConn) SetWriteBuffer(size int) error {
 	c, ok := conn.PacketConn.(interface{ SetWriteBuffer(int) error })
 	if !ok {
-		return fmt.Errorf("connection doesn't allow setting of send buffer size. Not a *net.UDPConn?")
+		return fmt.Errorf("connection doesn't allow setting of send buffer size. Not a *net.UDPConn? : %T", conn.PacketConn)
 	}
 	return c.SetWriteBuffer(size)
 }
 func (conn *FakeNetPacketConn) SetReadBuffer(size int) error {
 	c, ok := conn.PacketConn.(interface{ SetReadBuffer(int) error })
 	if !ok {
-		return fmt.Errorf("connection doesn't allow setting of send buffer size. Not a *net.UDPConn?")
+		return fmt.Errorf("connection doesn't allow setting of send buffer size. Not a *net.UDPConn? : %T", conn.PacketConn)
 	}
 	return c.SetReadBuffer(size)
 }
@@ -110,7 +110,7 @@ func (conn *FakeNetPacketConn) SyscallConn() (syscall.RawConn, error) {
 		SyscallConn() (syscall.RawConn, error)
 	})
 	if !ok {
-		return nil, fmt.Errorf("connection doesn't allow to get Syscall.RawConn. Not a *net.UDPConn?")
+		return nil, fmt.Errorf("connection doesn't allow to get Syscall.RawConn. Not a *net.UDPConn? : %T", conn.PacketConn)
 	}
 	return c.SyscallConn()
 }

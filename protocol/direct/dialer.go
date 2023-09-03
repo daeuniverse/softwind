@@ -63,10 +63,21 @@ func (d *directDialer) dialUdp(addr string, mark int) (c netproxy.PacketConn, er
 	} else {
 		var conn *net.UDPConn
 		if d.fullCone {
-			conn, err = net.ListenUDP("udp", d.udpLocalAddr)
+			c := net.ListenConfig{
+				Control: func(network string, address string, c syscall.RawConn) error {
+					return netproxy.SoMarkControl(c, mark)
+				},
+				KeepAlive: 0,
+			}
+			laddr := ""
+			if d.udpLocalAddr != nil {
+				laddr = d.udpLocalAddr.String()
+			}
+			_conn, err := c.ListenPacket(context.Background(), "udp", laddr)
 			if err != nil {
 				return nil, err
 			}
+			conn = _conn.(*net.UDPConn)
 		} else {
 			dialer := net.Dialer{
 				Control: func(network, address string, c syscall.RawConn) error {
@@ -79,15 +90,6 @@ func (d *directDialer) dialUdp(addr string, mark int) (c netproxy.PacketConn, er
 				return nil, err
 			}
 			conn = c.(*net.UDPConn)
-		}
-		f, err := conn.File()
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-
-		if err = netproxy.SoMark(int(f.Fd()), mark); err != nil {
-			return nil, err
 		}
 		return &directPacketConn{UDPConn: conn, FullCone: d.fullCone, dialTgt: addr, resolver: &net.Resolver{
 			PreferGo: true,
