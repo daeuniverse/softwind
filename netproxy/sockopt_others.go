@@ -1,4 +1,4 @@
-//go:build windows
+//go:build !(linux || android || freebsd || openbsd)
 
 /*
  * SPDX-License-Identifier: AGPL-3.0-only

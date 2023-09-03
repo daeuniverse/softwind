@@ -1,4 +1,4 @@
-//go:build linux || android || darwin || dragonfly || freebsd || (js && wasm) || netbsd || openbsd
+//go:build linux || android || freebsd || openbsd
 
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
