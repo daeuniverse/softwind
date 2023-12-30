@@ -1,4 +1,4 @@
-package congestion
+package bbr
 
 import (
 	"math"
@@ -7,10 +7,12 @@ import (
 	"github.com/mzz2017/quic-go/congestion"
 )
 
+const (
+	infBandwidth = Bandwidth(math.MaxUint64)
+)
+
 // Bandwidth of a connection
 type Bandwidth uint64
-
-const infBandwidth Bandwidth = math.MaxUint64
 
 const (
 	// BitsPerSecond is 1 bit per second

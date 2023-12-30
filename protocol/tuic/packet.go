@@ -249,7 +249,7 @@ func (q *quicStreamPacketConn) WriteTo(p []byte, addr string) (n int, err error)
 				return
 			}
 			data := buf.Bytes()
-			err = q.quicConn.SendMessage(data)
+			err = q.quicConn.SendDatagram(data)
 		}
 		var tooLarge quic.ErrMessageTooLarge
 		if errors.As(err, &tooLarge) {

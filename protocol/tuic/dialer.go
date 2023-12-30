@@ -53,7 +53,6 @@ func NewDialer(nextDialer netproxy.Dialer, header protocol.Header) (netproxy.Dia
 						MaxConnectionReceiveWindow:     common.MaxConnectionReceiveWindow,
 						KeepAlivePeriod:                3 * time.Second,
 						DisablePathMTUDiscovery:        false,
-						MaxDatagramFrameSize:           int64(maxDatagramFrameSize + PacketOverHead),
 						EnableDatagrams:                true,
 						HandshakeIdleTimeout:           8 * time.Second,
 						CapabilityCallback:             capabilityCallback,
@@ -99,8 +98,6 @@ func (d *Dialer) dialFuncFactory(udpNetwork string, rAddr net.Addr) common.DialF
 			RAddr:      rAddr,
 		}
 		transport = &quic.Transport{Conn: pc}
-		transport.SetCreatedConn(true)
-		transport.SetSingleUse(true)
 		return transport, rAddr, nil
 	}
 }

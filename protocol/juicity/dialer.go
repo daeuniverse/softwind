@@ -100,8 +100,6 @@ func (d *Dialer) dialFuncFactory(udpNetwork string, rAddr net.Addr) common.DialF
 			RAddr:      rAddr,
 		}
 		transport = &quic.Transport{Conn: pc}
-		transport.SetCreatedConn(true)
-		transport.SetSingleUse(true)
 		return transport, rAddr, nil
 	}
 }

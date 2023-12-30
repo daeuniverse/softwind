@@ -1,8 +1,6 @@
-package congestion
+package bbr
 
-import (
-	"time"
-)
+import "time"
 
 // A Clock returns the current time
 type Clock interface {
@@ -17,5 +15,4 @@ var _ Clock = DefaultClock{}
 // Now gets the current time
 func (DefaultClock) Now() time.Time {
 	return time.Now()
-	// return mono.Now().WallTime()
 }
