@@ -42,6 +42,6 @@ jobs:
           feed: ${{ matrix.feed }}
           prefix: "[New ${{ matrix.project }} version]"
           character-limit: ${{ env.CHARACTER_LIMIT }}
-          dry-run: true
+          dry-run: false
           max-age: ${{ env.MAX_AGE }}
           labels: github/release,automated-issue,${{ matrix.labels }}
