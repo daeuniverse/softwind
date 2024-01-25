@@ -50,6 +50,7 @@ func NewDialer(s string, d netproxy.Dialer) (*Dialer, error) {
 	}
 
 	if u.Scheme == "https" {
+		t.serverName = query.Get("serverName")
 		if t.serverName == "" {
 			t.serverName = u.Hostname()
 		}
