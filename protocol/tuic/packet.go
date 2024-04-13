@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/protocol"
 	"github.com/daeuniverse/softwind/protocol/tuic/common"
-	"github.com/mzz2017/quic-go"
 )
 
 type Packets struct {
@@ -202,7 +202,7 @@ func (q *quicStreamPacketConn) ReadFrom(p []byte) (n int, addr netip.AddrPort, e
 
 func (q *quicStreamPacketConn) WriteTo(p []byte, addr string) (n int, err error) {
 	if len(p) > 0xffff { // uint16 max
-		return 0, quic.ErrMessageTooLarge(0xffff)
+		return 0, &quic.DatagramTooLargeError{MaxDataLen: 0xffff}
 	}
 	if q.closed {
 		return 0, net.ErrClosed
@@ -251,9 +251,9 @@ func (q *quicStreamPacketConn) WriteTo(p []byte, addr string) (n int, err error)
 			data := buf.Bytes()
 			err = q.quicConn.SendDatagram(data)
 		}
-		var tooLarge quic.ErrMessageTooLarge
+		var tooLarge *quic.DatagramTooLargeError
 		if errors.As(err, &tooLarge) {
-			err = fragWriteNative(q.quicConn, packet, buf, int(tooLarge)-PacketOverHead)
+			err = fragWriteNative(q.quicConn, packet, buf, int(tooLarge.MaxDataLen)-PacketOverHead)
 		}
 		if err != nil {
 			return

@@ -3,8 +3,8 @@ package tuic
 import (
 	"net/netip"
 
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/pool/bytes"
-	"github.com/mzz2017/quic-go"
 )
 
 func fragWriteNative(quicConn quic.Connection, packet *Packet, buf *bytes.Buffer, fragSize int) (err error) {

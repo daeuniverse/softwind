@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/netproxy"
-	"github.com/mzz2017/quic-go"
 )
 
 type safeStreamConn struct {

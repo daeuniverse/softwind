@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/mzz2017/quic-go/congestion"
+	"github.com/daeuniverse/quic-go/congestion"
 
 	"github.com/daeuniverse/softwind/protocol/tuic/congestion/common"
 )

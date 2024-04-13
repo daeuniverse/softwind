@@ -1,9 +1,9 @@
 package congestion
 
 import (
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/protocol/tuic/congestion/bbr"
 	"github.com/daeuniverse/softwind/protocol/tuic/congestion/brutal"
-	"github.com/mzz2017/quic-go"
 )
 
 func UseBBR(conn quic.Connection) {

@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/protocol"
 	"github.com/daeuniverse/softwind/protocol/shadowsocks"
 	"github.com/daeuniverse/softwind/protocol/trojanc"
 	"github.com/daeuniverse/softwind/protocol/tuic/common"
 	"github.com/google/uuid"
-	"github.com/mzz2017/quic-go"
 )
 
 func init() {

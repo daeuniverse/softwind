@@ -1,8 +1,8 @@
 package common
 
 import (
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/protocol/tuic/congestion"
-	"github.com/mzz2017/quic-go"
 )
 
 const (

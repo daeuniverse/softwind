@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net"
 
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/protocol"
-	"github.com/mzz2017/quic-go"
 )
 
 var (

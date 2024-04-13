@@ -1,7 +1,7 @@
 package bbr
 
 import (
-	"github.com/mzz2017/quic-go/congestion"
+	"github.com/daeuniverse/quic-go/congestion"
 )
 
 // packetNumberIndexedQueue is a queue of mostly continuous numbered entries

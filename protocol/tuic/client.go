@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/protocol"
 	"github.com/daeuniverse/softwind/protocol/tuic/common"
-	"github.com/mzz2017/quic-go"
 )
 
 const Ver5 = 0x5

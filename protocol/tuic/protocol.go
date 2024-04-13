@@ -8,9 +8,9 @@ import (
 	"net/netip"
 	"strconv"
 
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/protocol"
 	"github.com/google/uuid"
-	"github.com/mzz2017/quic-go"
 )
 
 type BufferedReader interface {

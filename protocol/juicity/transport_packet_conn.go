@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/ciphers"
 	"github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/protocol/shadowsocks"
-	"github.com/mzz2017/quic-go"
 )
 
 type TransportPacketConn struct {

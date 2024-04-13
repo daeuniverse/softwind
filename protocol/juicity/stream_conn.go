@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daeuniverse/quic-go"
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/protocol/trojanc"
-	"github.com/mzz2017/quic-go"
 )
 
 type Conn struct {
