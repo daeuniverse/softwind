@@ -1,3 +1,3 @@
-# Softwind
+# DEPRECATED
 
-Basic proxy protocol implementation library.
+Merged into <https://github.com/daeuniverse/outbound>.
